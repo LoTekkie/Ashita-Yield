@@ -380,7 +380,7 @@ ashita.register_event('incoming_text', function(mode, message, modifiedmode, mod
     -- Start Mining --
     local patterns = strings.gathering[state.gathering].patterns;
     --TODO: can probably remove the check for mining specifically
-    if state.gathering == strings.gathering.mining.name and state.attempting then
+    if state.attempting then
         adjTotal(state.gathering, "attempts",  1);
         if not state.firstAttempts[state.gathering] then
             state.firstAttempts[state.gathering] = true
@@ -392,8 +392,10 @@ ashita.register_event('incoming_text', function(mode, message, modifiedmode, mod
         local full = string.contains(message, patterns.full);
         local val = 0;
         if success then
-            local chunk = string.match(success, patterns.chunk);
-            if chunk then success = chunk end
+            if state.gathering == strings.gathering.mining.name then
+                local chunk = string.match(success, patterns.chunk);
+                if chunk then success = chunk end
+            end
             success = string.gsub(" "..success, "%W%l", string.upper):sub(2);
             adjYield(state.gathering, success, 1);
             val = getPrice(state.gathering, success);
@@ -407,12 +409,13 @@ ashita.register_event('incoming_text', function(mode, message, modifiedmode, mod
         elseif full then
             adjTotal(state.gathering, "lost", 1);
         end
+        if success or successBreak or unable or broken or full then
+            state.attempting = false;
+        end
         curVal = metrics[state.gathering].estimatedValue;
         metrics[state.gathering].estimatedValue = curVal + val;
     end
    -- End Mining --
-
-    state.attempting = false;
     return false;
 end);
 

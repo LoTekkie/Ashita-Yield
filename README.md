@@ -120,6 +120,8 @@ ___
 
 **Wanna toss a coin to your modder?**
 * You can do so here: <https://www.Paypal.me/Sjshovan>  
+**OR**
+* For Gil donations: I play on Wings private server! (<https://www.wingsxi.com/wings/>) My in-game name is LoTekkie.
 
 ___
 ### Change Log    

@@ -30,66 +30,43 @@ require 'os'
 
 local colors = require("constants").colors
 
-DT = {
-    lastTime = 0
-}
-
-function DT.time()
-    local dt = 0
-    if DT.lastTime == 0 then
-        DT.lastTime = os.time()
-    else
-        local curTime = os.time()
-        dt = curTime - DT.lastTime
-        lastTime = curTime
-    end
-    return dt
-end
-
-function buildHelpCommandEntry(command, description)
+function helpCommandEntry(command, description)
     local short_name = strColor("yld", colors.primary)
     local command = strColor(command, colors.secondary)
     local sep = strColor("=>", colors.primary)
     local description = strColor(description, colors.info)
-    
     return string.format("%s %s %s %s", short_name, command, sep, description)
 end
 
-function buildHelpTypeEntry(name, description)
+function helpTypeEntry(name, description)
     local name = strColor(name, colors.secondary)
     local sep = strColor("=>", colors.primary)
     local description = strColor(description, colors.info)
-    
     return string.format("%s %s %s", name, sep, description)
 end
 
-function buildHelpTitle(context)
+function helpTitle(context)
     local context = strColor(context, colors.danger)
-    
     return string.format("%s Help: %s", _addon.name, context)
 end
 
-function buildHelpSeperator(character, count)
+function helpSeparator(character, count)
     local sep = ''
-    
     for i = 1, count do
         sep = sep .. character
     end
-    
     return strColor(sep, colors.warn)
 end
 
-function buildCommandResponse(message, success)
-    local response_color = colors.success
-    local response_type = 'Success'
-    
+function commandResponse(message, success)
+    local responseColor = colors.success
+    local responseType = 'Success'
     if not success then
-        response_type = 'Error'
-        response_color = colors.danger
+        responseType = 'Error'
+        responseColor = colors.danger
     end
-    
     return string.format("%s: %s", 
-        strColor(response_type, response_color), strColor(message, colors.info)
+        strColor(responseType, responseColor), strColor(message, colors.info)
     )
 end
 
@@ -100,18 +77,4 @@ end
 
 function strColor(str, color) 
     return string.format(color, str)
-end
-
-function ucFirst(str)
-    return str:gsub("^%l", string.upper)
-end
-
-function tableContains(tab, val)
-    for index, value in pairs(tab) do
-        if value == val then
-            return true
-        end
-    end
-
-    return false
 end

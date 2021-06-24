@@ -28,77 +28,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 require 'common'
 
-packets = {
-    inbound = {
-        music_change = {
-            id = 0x05F,
-            offsets = {
-                type = 0x06
-            }
-        },
-        zone_update = {
-            id = 0x00A
-        }
-    },
-    outbound = {
-        action = {
-            id = 0x1A,
-            categories = {
-                mount = 0x1A,
-                unmount = 0x12
-            }
-        },
-        trade = {
-            id = 0x36,
-            categories = {
-                finished = 0x5B --TODO: find out what this is
-            }
-        }
-    },
-}
-
-strings = {
-    gathering = {
-        mining = {name = "mining", short = "Min.", patterns = {
-            success = "^You successfully dig up a (.*)!",
-            successBreak = "You dig up a (.*), but your pickaxe breaks in the process.",
-            chunk = "chunk of (.*)",
-            unable = "You are unable to mine anything.",
-            broken = "Your (.*) breaks!",
-            full = "You cannot carry any more items."
-        }},
-        harvesting = {name = "harvesting", short = "Har.", patterns = {
-        }},
-        logging = {name = "logging", short = "Log.", patterns = {
-        }},
-        excavating = {name = "excavating", short = "Exc.", patterns = {
-        }},
-        clamming = {name = "clamming", short = "Cla.", patterns = {
-        }}
-    },
-    tooltips = {
-        totals = {
-            lost = "Total number of items lost.",
-            attempts = "Total attempts at gathering.",
-            yields = "Total successful gathers.",
-            breaks = "Total number of broken tools.",
-        },
-        secondsPassed = "Total time passed since your first %s attempt.",
-        estimatedValue = "Estimated value of all yields.",
-        progress = "Progress towards target value (%s/%s).",
-        yields = "List of running totals for all current yields.",
-        settings = {
-            general = {
-                windowOpacity = "Current alpha channel value of all Yield windows.",
-                targetValue = "Amount you would like to earn this session."
-            },
-            setPrices = {
-                yield = "Set the estimated value for a single %s."
-            }
-        }
-    }
-}
-
 colors = {
     primary = "\31\200%s",
     secondary = "\31\207%s",
@@ -109,7 +38,5 @@ colors = {
 }
 
 return {
-    packets = packets,
     colors = colors,
-    strings = strings
 }

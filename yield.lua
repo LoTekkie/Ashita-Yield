@@ -97,31 +97,32 @@ local default_settings = {
 local settings = default_settings;
 
 local uiVariables = {
-    ["var_WindowOpacity"] = { nil, ImGuiVar_FLOAT, 1.0 },
-    ["var_TargetValue"] = { nil, ImGuiVar_UINT32, 0 }
+    ["var_WindowOpacity"]    = { nil, ImGuiVar_FLOAT, 1.0 },
+    ["var_TargetValue"]      = { nil, ImGuiVar_UINT32, 0 },
+    ["var_YieldPlotVisible"] = { nil, ImGuiVar_BOOLCPP, true }
 }
 
 local help = {
     commands = {
-        buildHelpSeperator('=', 26),
-        buildHelpTitle('Commands'),
-        buildHelpSeperator('=', 26),
-        buildHelpCommandEntry('unload', 'Unload Yield.'),
-        buildHelpCommandEntry('reload', 'Reload Yield.'),
-        buildHelpCommandEntry('about', 'Display information about Yield.'),
-        buildHelpCommandEntry('help', 'Display Yield commands.'),
-        buildHelpSeperator('=', 26),
+        helpSeparator('=', 26),
+        helpTitle('Commands'),
+        helpSeparator('=', 26),
+        helpCommandEntry('unload', 'Unload Yield.'),
+        helpCommandEntry('reload', 'Reload Yield.'),
+        helpCommandEntry('about', 'Display information about Yield.'),
+        helpCommandEntry('help', 'Display Yield commands.'),
+        helpSeparator('=', 26),
     },
     about = {
-        buildHelpSeperator('=', 23),
-        buildHelpTitle('About'),
-        buildHelpSeperator('=', 23),
-        buildHelpTypeEntry('Name', _addon.name),
-        buildHelpTypeEntry('Description', _addon.description),
-        buildHelpTypeEntry('Author', _addon.author),
-        buildHelpTypeEntry('Version', _addon.version),
-        buildHelpTypeEntry('Support/Donate', "https://Paypal.me/Sjshovan"),
-        buildHelpSeperator('=', 23),
+        helpSeparator('=', 23),
+        helpTitle('About'),
+        helpSeparator('=', 23),
+        helpTypeEntry('Name', _addon.name),
+        helpTypeEntry('Description', _addon.description),
+        helpTypeEntry('Author', _addon.author),
+        helpTypeEntry('Version', _addon.version),
+        helpTypeEntry('Support/Donate', "https://Paypal.me/Sjshovan"),
+        helpSeparator('=', 23),
     },
     aliases = {}
 }
@@ -131,12 +132,12 @@ local state = {
     initializing = true,
     settings = {
         general = {active = true},
-        setPrices = {active = false, gathering = strings.gathering.mining.name },
+        setPrices = {active = false, gathering = "mining" },
         setAlerts = {active = false, default = ""},
         about = {active = false},
     },
-    gathering = strings.gathering.mining.name,
-    gatheringShort = strings.gathering.mining.short,
+    gathering = "mining",
+    gatheringShort = "Min.",
     firstAttempts = {
         mining = false,
         logging = false,
@@ -150,18 +151,18 @@ local state = {
 }
 
 local gatherBtnsOrder = {
-    strings.gathering.mining,
-    strings.gathering.harvesting,
-    strings.gathering.logging,
-    strings.gathering.excavating,
-    strings.gathering.clamming
+    [1] = {"mining", "Min."},
+    [2] = {"harvesting", "Har."},
+    [3] = {"logging", "Log."},
+    [4] = {"excavating", "Exc."},
+    [5] = {"clamming", "Cla."}
 }
 
 local settingBtnsOrder = {
-    "general",
-    "setPrices",
-    "setAlerts",
-    "about"
+    [1] = "general",
+    [2] = "setPrices",
+    [3] = "setAlerts",
+    [4] = "about"
 }
 
 local metrics = {}
@@ -188,7 +189,7 @@ local metricsTemplate = {
 }
 
 for _, v in ipairs(gatherBtnsOrder) do
-    metrics[v.name] = table.copy(metricsTemplate);
+    metrics[v[1]] = table.copy(metricsTemplate);
 end
 
 function loadSettings()
@@ -223,7 +224,7 @@ function updatePlotPoints()
         metrics[state.gathering].secondsPassed = totalSecs + 1
         local timeSpan = 3600 -- one hour
         local timePassed = metrics[state.gathering].secondsPassed
-        local pointsLimit = 3600
+        local pointsLimit = 300
         local yieldsOverTime = metrics[state.gathering].totals.yields * (timeSpan / timePassed)
         local valueOverTime =  metrics[state.gathering].estimatedValue * (timeSpan / timePassed)
         if totalSecs >= pointsLimit then
@@ -247,20 +248,20 @@ function display_help(helpTable)
     end
 end
 
-function getPrice(gatherType, itemName)
-    return settings.prices[gatherType][itemName] or 0
+function getPrice(itemName)
+    return settings.prices[state.gathering][itemName] or 0
 end
 
-function adjTotal(gatherType, metricName, val)
-    local total = metrics[gatherType].totals[metricName]
+function adjTotal(metricName, val)
+    local total = metrics[state.gathering].totals[metricName]
     if total == nil then total = 0 end
-    metrics[gatherType].totals[metricName] = total + val
+    metrics[state.gathering].totals[metricName] = total + val
 end
 
-function adjYield(gatherType, yieldName, val)
-    local yield = metrics[gatherType].yields[yieldName]
+function adjYield(yieldName, val)
+    local yield = metrics[state.gathering].yields[yieldName]
     if yield == nil then yield = 0 end
-    metrics[gatherType].yields[yieldName] = yield + val
+    metrics[state.gathering].yields[yieldName] = yield + val
 end
 
 function calcTargetProgress()
@@ -271,21 +272,35 @@ function calcTargetProgress()
     return progress
 end
 
-function timeFormatSeconds(seconds)
-    local s = tonumber(seconds)
-    return string.format("%02d:%02d:%02d", math.floor(s/3600), math.floor(s/60), s%60);
+function table.sortKeysByAlphabet(t, desc)
+    local ret = {}
+    for k, v in pairs(t) do
+        table.insert(ret, k)
+    end
+    if (desc) then
+        table.sort(ret, function(a, b) return a:lower() < b:lower() end);
+    else
+        table.sort(ret, function(a, b) return a:lower() > b:lower() end);
+    end
+    return ret;
 end
 
+----------------------------------------------------------------------------------------------------
+-- func: load
+-- desc: Called when the addon is loaded.
+----------------------------------------------------------------------------------------------------
 ashita.register_event('load', function()
     state.initializing = true
 
+    -- Ensure the settings folder exists..
     ashita.file.create_dir(_addon.path .. '/settings/');
 
+    -- Load and merge the users settings..
     settings = ashita.settings.load_merged(
         _addon.path .. '/settings/settings.json', settings
     )
 
-    -- Add price uivariables from settings
+    -- Add price uiVariables from settings..
     for k, v in pairs(settings.prices) do
         if #v then
             for yield, price in pairs(v) do
@@ -294,6 +309,7 @@ ashita.register_event('load', function()
         end
     end
 
+    -- Initialize custom variables..
     for k, v in pairs(uiVariables) do
         if (v[2] >= ImGuiVar_CDSTRING) then
             uiVariables[k][1] = imgui.CreateVar(uiVariables[k][2], uiVariables[k][3]);
@@ -305,11 +321,18 @@ ashita.register_event('load', function()
         end
     end
 
+    -- Load the settings file..
     loadSettings();
 end)
 
+----------------------------------------------------------------------------------------------------
+-- func: unload
+-- desc: Called when the addon is unloaded.
+----------------------------------------------------------------------------------------------------
 ashita.register_event('unload', function()
+    -- Save the settings file..
     saveSettings();
+
     -- Cleanup the custom variables..
     for k, v in pairs(uiVariables) do
         if (uiVariables[k][1] ~= nil) then
@@ -319,28 +342,30 @@ ashita.register_event('unload', function()
     end
 end)
 
+---------------------------------------------------------------------------------------------------
+-- func: command
+-- desc: Called when the addon is handling a command.
+---------------------------------------------------------------------------------------------------
 ashita.register_event('command', function(command, ntype)
     local command_args = command:lower():args();
 
-    if not tableContains(_addon.commands, command_args[1]) then
+    if not table.haskey(_addon.commands, command_args[1]) then
         return false;
-    end 
+    end
 
-    local respond = false;
-    local response_message = '';
+    local responseMessage = "";
     local success = true;
 
     if command_args[2] == 'reload' or command_args[2] == 'r' then
         AshitaCore:GetChatManager():QueueCommand('/addon reload yield', 1);
-    
+
     elseif command_args[2] == 'unload' or command_args[2] == 'u' then
-        respond = true;
         response_message = 'Thank you for using Yield. Goodbye.';
         AshitaCore:GetChatManager():QueueCommand('/addon unload yield', 1);
 
     elseif command_args[2] == 'about' or command_args[2] == 'a' then
         display_help(help.about);
-        
+
     elseif command_args[2] == 'help' or command_args[2] == 'h' then
         display_help(help.commands);
 
@@ -348,9 +373,9 @@ ashita.register_event('command', function(command, ntype)
         display_help(help.commands);
     end
 
-    if respond then
+    if responseMessage ~= "" then
         displayResponse(
-            buildCommandResponse(response_message, success)
+            commandResponse(response_message, success)
         );
     end
 
@@ -362,96 +387,113 @@ end)
 -- desc: Event called when the addon is asked to handle an incoming chat line.
 ---------------------------------------------------------------------------------------------------
 ashita.register_event('incoming_text', function(mode, message, modifiedmode, modifiedmessage, blocked)
-    -- Do nothing if the line is already blocked..
-    if (blocked) then return false; end
+    -- ensure proper chat modes.
+    if (mode ~= 919 or blocked or message:startswith(string.char(0x1E, 0x01))) then return false; end
 
-    -- Handle the modified message if its set..
+    -- Handle the modified message if its set.
     if (modifiedmessage ~= nil and #modifiedmessage > 0) then
         message = modifiedmessage;
     end
-        
-    -- Check for double-chat lines (ie. npc chat)..
-    if (message:startswith(string.char(0x1E, 0x01))) then
-        return false;
-    end
-    -- Remove colors form message
+
+    -- Remove colors form message.
     message = string.strip_colors(message);
 
-    -- Start Mining --
-    local patterns = strings.gathering[state.gathering].patterns;
-    --TODO: can probably remove the check for mining specifically
     if state.attempting then
-        adjTotal(state.gathering, "attempts",  1);
+        adjTotal("attempts",  1);
+
         if not state.firstAttempts[state.gathering] then
             state.firstAttempts[state.gathering] = true
         end
-        local success = string.match(message, patterns.success) or string.match(message, patterns.successBreak);
-        local successBreak = string.match(message, patterns.successBreak);
-        local unable = message == patterns.unable;
-        local broken = string.match(message, patterns.broken);
-        local full = string.contains(message, patterns.full);
+
         local val = 0;
+        local success = false;
+        local successBreak = false;
+        local unable = false;
+        local broken = false;
+        local full = false;
+
+         switch(state.gathering) : caseof
+        {
+            ["harvesting"] = function()
+                success = string.match(message, "") or string.match(message, "");
+                successBreak = string.match(message, "");
+                unable = message == "";
+                broken = string.match(message, "");
+                full = string.contains(message, "");
+            end,
+            ["mining"] = function()
+                success = string.match(message, "^You successfully dig up a (.*)!") or string.match(message, "You dig up a (.*), but your pickaxe breaks in the process.");
+                successBreak = string.match(message, "You dig up a (.*), but your pickaxe breaks in the process.");
+                unable = message == "You are unable to mine anything.";
+                broken = string.match(message, "Your (.*) breaks!");
+                full = string.contains(message, "You cannot carry any more items.");
+            end,
+            ["default"] = function() end
+        }
+
         if success then
-            if state.gathering == strings.gathering.mining.name then
-                local chunk = string.match(success, patterns.chunk);
-                if chunk then success = chunk end
-            end
+            switch(state.gathering) : caseof
+            {
+                ["mining"] = function()
+                    local chunk = string.match(success, "chunk of (.*)");
+                    if chunk then success = chunk end
+                end,
+            }
             success = string.gsub(" "..success, "%W%l", string.upper):sub(2);
-            adjYield(state.gathering, success, 1);
-            val = getPrice(state.gathering, success);
-            if successBreak then
-                adjTotal(state.gathering, "breaks", 1);
-            end
-            adjTotal(state.gathering, "yields", 1);
+            val = getPrice(success);
+            adjYield(success, 1);
+            if successBreak then adjTotal("breaks", 1); end
+            adjTotal("yields", 1);
         elseif broken then
-            adjTotal(state.gathering, "breaks", 1);
-        elseif unable then
+            adjTotal("breaks", 1);
         elseif full then
-            adjTotal(state.gathering, "lost", 1);
+            adjTotal("lost", 1);
         end
-        if success or successBreak or unable or broken or full then
-            state.attempting = false;
-        end
+        --TODO: set attempting to false when conditions met
         curVal = metrics[state.gathering].estimatedValue;
         metrics[state.gathering].estimatedValue = curVal + val;
     end
-   -- End Mining --
     return false;
 end);
 
+local timerButtonOneText = "Start"
 ----------------------------------------------------------------------------------------------------
 -- func: render
 -- desc: Called when the addon is rendering.
 ----------------------------------------------------------------------------------------------------
 local var = imgui.CreateVar(1.0, 1.0)
 ashita.register_event('render', function()
-
-    --print(AshitaCore:GetDataManager():GetInventory():GetItem(Containers.Inventory, 605))
-    local title = ">>> "..string.upper(state.gathering).." <<<";
-    local fontSize = imgui.GetFontSize() * title:len() / 2;
-    local height =  452.0;
+    local height =  470.0;
     local width = 210.0;
     local paddingX = 5.0;
     local paddingY = 5.0;
     local spacing = 5.0;
-    --imgui.PushStyleColor(ImGuiCol_WindowBg, 0, 0, 0, settings.window.opacity);
-    --imgui.PushStyleColor(ImGuiCol_ChildWindowBg, 0, 0, 0, settings.window.opacity);
-    --imgui.PushStyleColor(ImGuiCol_MenuBarBg, 0, 0, 0, settings.window.opacity);
-    --imgui.PushStyleColor(ImGuiCol_ComboBg, 0, 0, 0, settings.window.opacity);
-    imgui.SetNextWindowSize(width, height, ImGuiSetCond_Once);
+    local scale = 1.0;
+
+    imgui.SetWindowFontScale(scale)
+    imgui.SetNextWindowSize(width, height, ImGuiSetCond_Always);
+    --print(fontSize);
     imgui.PushStyleVar(ImGuiStyleVar_WindowRounding, 5.0);
     imgui.PushStyleVar(ImGuiStyleVar_Alpha, settings.window.opacity);
     imgui.PushStyleVar(ImGuiStyleVar_WindowPadding, paddingX, paddingY);
     imgui.Begin(string.format("%s - v%s", _addon.name, _addon.version), state.active, ImGuiWindowFlags_MenuBar+ImGuiWindowFlags_NoResize)
+    imgui.SetWindowFontScale(scale)
+    --print(imgui.GetContentRegionAvailWidth() .." ".. imgui.GetWindowWidth())
+    --print(imgui.CalcItemWidth());
     --imgui.PushStyleVar(ImGuiStyleVar_WindowMinSize, width, height);
     imgui.BeginMenuBar()
     for _, v in ipairs(gatherBtnsOrder) do
-        if v.name == state.gathering then
+        if v[1] == state.gathering then
             imgui.PushStyleColor(ImGuiCol_Button, 0.21, 0.47, 0.59, 1);
-            if imgui.SmallButton(v.short) then state.gathering = v.name; state.settings.setPrices.gathering = state.gathering; end
+            if imgui.SmallButton(v[2]) then state.gathering = v[1]; state.settings.setPrices.gathering = state.gathering; end
             imgui.PopStyleColor();
         else
-            if imgui.SmallButton(v.short) then state.gathering = v.name; state.settings.setPrices.gathering = state.gathering; end
+            if imgui.SmallButton(v[2]) then state.gathering = v[1]; state.settings.setPrices.gathering = state.gathering; end
+        end
+        if imgui.IsItemHovered() then
+            imgui.BeginTooltip();
+            imgui.SetTooltip(string.upperfirst(v[1]));
+            imgui.EndTooltip();
         end
         imgui.SameLine(0.0, spacing);
     end
@@ -461,50 +503,83 @@ ashita.register_event('render', function()
     imgui.Separator();
 
     imgui.BeginChild("Header", -1, 15)
-
-    local progress = calcTargetProgress()
-    imgui.PushStyleColor(ImGuiCol_Text, 1, 1, 0.54, settings.window.opacity);
-    imgui.ProgressBar(progress, -1, 15, title)
+    imgui.Text("(?)")
     if imgui.IsItemHovered() then
         imgui.BeginTooltip();
-        imgui.SetTooltip(string.format(strings.tooltips.progress, metrics[state.gathering].estimatedValue, settings.targetValue));
+        imgui.SetTooltip(string.format("Progress towards target value (%s/%s).", metrics[state.gathering].estimatedValue, settings.targetValue));
         imgui.EndTooltip();
     end
+    imgui.SameLine(21.0)
+    imgui.PushStyleColor(ImGuiCol_Text, 1, 1, 0.54, settings.window.opacity);
+    local progress = calcTargetProgress()
+    imgui.ProgressBar(progress, -1, 15, string.format("%s/%s", metrics[state.gathering].estimatedValue, settings.targetValue))
     imgui.PopStyleColor();
     imgui.EndChild();
     imgui.Separator();
     imgui.Spacing();
 
+    local metricToolTips = {
+        lost = "Total number of items lost.",
+        attempts = "Total attempts at gathering.",
+        yields = "Total successful gathers.",
+        breaks = "Total number of broken tools.",
+    }
+
     for metric, total in pairs(metrics[state.gathering].totals) do
-        imgui.Text(string.upperfirst(metric)..": ");
+        imgui.Text("(?)")
         if imgui.IsItemHovered() then
             imgui.BeginTooltip();
-            imgui.SetTooltip(strings.tooltips.totals[metric]);
+            imgui.SetTooltip(metricToolTips[metric]);
             imgui.EndTooltip();
         end
+        imgui.SameLine(28.0)
+        imgui.Text(string.format("%s: ", string.upperfirst(metric)));
         imgui.SameLine();
         imgui.Text(total)
     end
-    imgui.Text("Time Passed: ");
+    imgui.Text("(?)")
     if imgui.IsItemHovered() then
         imgui.BeginTooltip();
-        imgui.SetTooltip(string.format(strings.tooltips.secondsPassed, state.gathering));
+        imgui.SetTooltip(string.format("Total time passed since your first %s attempt.", state.gathering));
         imgui.EndTooltip();
     end
+    imgui.SameLine(28.0);
+    imgui.Text("Time Passed: ");
     imgui.SameLine();
-    imgui.Text(timeFormatSeconds(metrics[state.gathering].secondsPassed))
+    imgui.Text(os.date("!%X", (metrics[state.gathering].secondsPassed)))
+
+    imgui.Spacing();
+
+    imgui.Text("(?)")
+    if imgui.IsItemHovered() then
+        imgui.BeginTooltip();
+        imgui.SetTooltip(string.format("Start/Pause/Resume/Reset the %s timer.", string.upperfirst(state.gathering)));
+        imgui.EndTooltip();
+    end
+    imgui.SameLine(28.0);
+    imgui.Text("Timer: ")
+    imgui.SameLine(75.0);
+    if imgui.SmallButton(timerButtonOneText) then
+    end
+    imgui.SameLine()
+    if imgui.SmallButton("Reset") then
+    end
 
     imgui.Spacing();
     imgui.Separator();
     imgui.Spacing();
 
     imgui.PushStyleColor(ImGuiCol_Text, 0.39, 0.96, 0.13, settings.window.opacity);
-    imgui.Text("Value (estd.): ");
+    imgui.Text("(?)")
     if imgui.IsItemHovered() then
        imgui.BeginTooltip();
-       imgui.SetTooltip(strings.tooltips.estimatedValue);
+       imgui.SetTooltip("Estimated value of all yields.");
        imgui.EndTooltip();
     end
+    imgui.SameLine(28.0);
+
+    imgui.Text("Value (estd.): ");
+
     imgui.SameLine();
     imgui.Text(metrics[state.gathering]["estimatedValue"]);
     imgui.PopStyleColor();
@@ -515,23 +590,29 @@ ashita.register_event('render', function()
 
     local plotYields = metrics[state.gathering].points.yields;
     imgui.PushStyleColor(ImGuiCol_Text, 1, 1, 0.54, settings.window.opacity);
-    imgui.PlotHistogram("", plotYields, #plotYields, 0, "yields/hr", FLT_MIN, FLT_MAX, width-paddingX*2, 30);
+    imgui.PlotHistogram("", plotYields, #plotYields, 0, "(?) Yields/HR", FLT_MIN, FLT_MAX, width-paddingX*2, 30);
     imgui.PopStyleColor()
     if imgui.IsItemHovered() then
         imgui.BeginTooltip();
-        imgui.SetTooltip(string.format("%0.2f", metrics[state.gathering].points.yields[#metrics[state.gathering].points.yields] or 0));
+        imgui.SetTooltip(string.format("%0.2f/HR (Click to toggle label).", metrics[state.gathering].points.yields[#metrics[state.gathering].points.yields] or 0));
         imgui.EndTooltip();
     end
 
+
     local plotValue = metrics[state.gathering].points.value;
     imgui.PushStyleColor(ImGuiCol_Text, 1, 1, 0.54, settings.window.opacity);
-    imgui.PlotLines("", plotValue, #plotValue, 0, "value/hr", FLT_MIN, FLT_MAX, width-paddingX*2, 30);
+    imgui.PlotLines("", plotValue, #plotValue, 0, "(?) Value/HR", FLT_MIN, FLT_MAX, width-paddingX*2, 30);
     imgui.PopStyleColor()
     if imgui.IsItemHovered() then
         imgui.BeginTooltip();
-        imgui.SetTooltip(string.format("%0.2f", metrics[state.gathering].points.value[#metrics[state.gathering].points.value] or 0));
+        imgui.SetTooltip(string.format("%0.2f/HR (Click to toggle label).", metrics[state.gathering].points.value[#metrics[state.gathering].points.value] or 0));
         imgui.EndTooltip();
     end
+    imgui.SameLine(0.0, spacing);
+    if (imgui.Checkbox('', uiVariables['var_YieldPlotVisible'][1])) then
+
+    end
+
     imgui.Spacing();
     imgui.BeginChild("Scrolling", width-paddingX*2, 140, true);
 
@@ -562,6 +643,7 @@ ashita.register_event('render', function()
         imgui.OpenPopup(confirmModal)
     end
 
+
     imgui.SameLine(0.0, spacing);
 
     if imgui.Button("Reset") then
@@ -575,6 +657,7 @@ ashita.register_event('render', function()
         imgui.OpenPopup(confirmModal)
     end
 
+
     imgui.SameLine(0.0, spacing);
 
     if imgui.Button("Settings") then
@@ -582,7 +665,7 @@ ashita.register_event('render', function()
     end
     --table.insert(metrics[state.gathering]["points"], math.random(-10000, 10000))
     height = 505.0;
-    imgui.SetNextWindowSize(width*2, height-60, ImGuiSetCond_Once);
+    imgui.SetNextWindowSize(width*2, height-60, ImGuiSetCond_Always);
     if imgui.BeginPopupModal("Yield Settings", state.active, ImGuiWindowFlags_MenuBar+ImGuiWindowFlags_NoResize) then
         imgui.BeginMenuBar()
         spacing = 5.0;
@@ -611,78 +694,60 @@ ashita.register_event('render', function()
         end
         imgui.EndMenuBar();
 
-        height = height-140
         if state.settings.general.active then
-            imgui.BeginChild("General", -1, height, state.active)
-
-            if (imgui.SliderFloat('Window Opacity', uiVariables['var_WindowOpacity'][1], 0.25, 1.0, "%1.2f")) then
+            imgui.BeginChild("General", -1, height-140, state.active)
+            imgui.Spacing();
+            if (imgui.SliderFloat("Window Opacity", uiVariables['var_WindowOpacity'][1], 0.25, 1.0, "%1.2f")) then
                 settings.window.opacity = imgui.GetVarValue(uiVariables['var_WindowOpacity'][1])
             end
+            imgui.SameLine(0.0, 4.0);
+            imgui.Text("(?)")
             if imgui.IsItemHovered() then
                 imgui.BeginTooltip();
-                imgui.SetTooltip(strings.tooltips.settings.general.windowOpacity);
+                imgui.SetTooltip("Current alpha channel value of all Yield windows.");
                 imgui.EndTooltip();
             end
-            imgui.Spacing()
+            imgui.Spacing();
             if (imgui.InputInt("Target Value", uiVariables['var_TargetValue'][1])) then
                 settings.targetValue = imgui.GetVarValue(uiVariables['var_TargetValue'][1]);
             end
+            imgui.SameLine(0.0, 4.0);
+            imgui.Text("(?)")
             if imgui.IsItemHovered() then
                 imgui.BeginTooltip();
-                imgui.SetTooltip(strings.tooltips.settings.general.targetValue);
+                imgui.SetTooltip("Amount you would like to earn this session.");
                 imgui.EndTooltip();
             end
-
             imgui.EndChild()
         elseif state.settings.setPrices.active then
             local currentPrices = state.settings.setPrices.gathering
             local title = ">>> "..string.upper(currentPrices).." PRICES <<<"
             local fontSize = (imgui.GetFontSize() * title:len()) / 2
-            imgui.BeginChild("Set Prices", -1, height, state.active, ImGuiWindowFlags_MenuBar+ImGuiWindowFlags_NoResize)
+            imgui.BeginChild("Set Prices", -1, height-140, state.active, ImGuiWindowFlags_MenuBar+ImGuiWindowFlags_NoResize)
             imgui.BeginMenuBar()
             for _, v in ipairs(gatherBtnsOrder) do
-                if v.name == state.settings.setPrices.gathering then
+                if v[1] == state.settings.setPrices.gathering then
                     imgui.PushStyleColor(ImGuiCol_Button, 0.21, 0.47, 0.59, 1);
-                    if imgui.SmallButton(v.short) then state.settings.setPrices.gathering = v.name end
+                    if imgui.SmallButton(v[2]) then state.settings.setPrices.gathering = v[1] end
                     imgui.PopStyleColor();
                 else
-                    if imgui.SmallButton(v.short) then state.settings.setPrices.gathering = v.name end
+                    if imgui.SmallButton(v[2]) then state.settings.setPrices.gathering = v[1] end
                 end
                 imgui.SameLine(0.0, spacing);
             end
             imgui.EndMenuBar()
-
             imgui.Spacing()
             imgui.Separator()
 
-            imgui.BeginChild("Header", -1, 15)
-            imgui.SetCursorPosX((imgui.GetWindowWidth()) / 2 - (fontSize / 2))
-
-            imgui.PushStyleColor(ImGuiCol_Text, 1, 1, 0.54, settings.window.opacity)
-            imgui.Text(title)
-            imgui.PopStyleColor()
-
-            imgui.EndChild()
-
-            imgui.Separator();
-            imgui.Spacing();
-
-            imgui.BeginChild("Scrolling", -1, 300)
-            for k, v in pairs(settings.prices[state.settings.setPrices.gathering]) do
+            imgui.BeginChild("Scrolling", -1, 330)
+            for v, k in pairs(table.sortKeysByAlphabet(settings.prices[state.settings.setPrices.gathering], true)) do
                 local var = string.format("var_%s_%s", state.settings.setPrices.gathering, string.clean(k))
                 if (imgui.InputInt(k, uiVariables[var][1])) then
                     settings.prices[state.settings.setPrices.gathering][k] = imgui.GetVarValue(uiVariables[string.format("var_%s_%s", state.settings.setPrices.gathering, string.clean(k))][1]);
                 end
-                --if imgui.IsItemHovered() then
-                --    imgui.BeginTooltip();
-                 --   imgui.SetTooltip(string.format(strings.tooltips.settings.setPrices.yield, k));
-                 --   imgui.EndTooltip();
-                --end
             end
             imgui.EndChild()
-
             imgui.EndChild()
-
         elseif state.settings.setAlerts.active then
             imgui.BeginChild("Set Alerts", -1, height, true);
             imgui.Text("Set sound alerts for specific yields.");
@@ -712,10 +777,7 @@ ashita.register_event('render', function()
         imgui.PopStyleVar();
     end
 
-    width = width*1.25;
-    height = 75;
-    spacing = 10;
-    imgui.SetNextWindowSize(width, height, ImGuiSetCond_Always);
+    imgui.SetNextWindowSize(width*1.25, 75, ImGuiSetCond_Always);
     if imgui.BeginPopupModal("Yield Confirm", state.active, ImGuiWindowFlags_NoResize) then
         imgui.Text(state.confirmPrompt);
         imgui.Separator();
@@ -724,7 +786,7 @@ ashita.register_event('render', function()
             imgui.CloseCurrentPopup();
             state.confirmAction();
         end
-        imgui.SameLine(0.0, spacing);
+        imgui.SameLine(0.0, 10);
         if imgui.Button("No") or state.initializing then
             imgui.CloseCurrentPopup();
             state.confirmAction = function() end
@@ -736,8 +798,9 @@ ashita.register_event('render', function()
 end);
 
 ashita.register_event('outgoing_packet', function(id, size, packet, packet_modified, blocked)
-    if id == packets.outbound.trade.id then
-         if AshitaCore:GetDataManager():GetTarget():GetTargetName() == "Mining Point" then state.attempting = true; end
+    local gatheringTargets = {"Mining Point"}
+    if id == 0x36 and table.hasKey(gatheringTargets, AshitaCore:GetDataManager():GetTarget():GetTargetName()) then
+        state.attempting = true;
     end
     return false;
 end);

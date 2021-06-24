@@ -6,6 +6,7 @@
 
 > An Ashita v3 addon that allows you to track and edit gathering metrics within a simple GUI in Final Fantasy 11 Online.
 
+### *This Addon is currently in Alpha and is a WIP. I am aiming to have it completed by 07/01/2021.*
 
 ### Table of Contents
 

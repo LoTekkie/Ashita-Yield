@@ -482,10 +482,10 @@ ashita.register_event('render', function()
     if imguiShowToolTip(string.format("Progress towards your target value (adjusted within settings)."), settings.general.showToolTips) then
         imgui.SameLine(24.0)
     end
-    --imgui.PushStyleColor(ImGuiCol_Text, 1, 1, 0.54, settings.general.opacity);
+    imgui.PushStyleColor(ImGuiCol_Text, 1, 1, 0.54, settings.general.opacity);
     local progress = calcTargetProgress()
     imgui.ProgressBar(progress, -1, 15, string.format("%s/%s", metrics[state.gathering].estimatedValue, settings.general.targetValue))
-    --imgui.PopStyleColor();
+    imgui.PopStyleColor();
     imgui.EndChild();
 
     imguiHalfSep(true);
@@ -553,7 +553,7 @@ ashita.register_event('render', function()
     if imguiShowToolTip(string.format("Plot histogram of %s yields per hour (click the on plot to cycle its label displays).", string.upperfirst(state.gathering)), settings.general.showToolTips) then
         imgui.SameLine(30.0);
     end
-    imgui.PushStyleColor(ImGuiCol_Text, 1, 1, 1, 0.618);
+    imgui.PushStyleColor(ImGuiCol_Text, 1, 1, 0.54, 1);
     imgui.PlotHistogram("", plotYields, #plotYields, 0, state.values.labelPlotYields, FLT_MIN, FLT_MAX, plotWidth, 30);
     imgui.PopStyleColor()
     if imgui.IsItemClicked() then
@@ -561,7 +561,7 @@ ashita.register_event('render', function()
     end
     if imgui.IsItemHovered() then
         if state.values.labelPlotYields == "" then
-            imgui.SetTooltip(string.format("Yields/HR (%.2f)", metrics[state.gathering].points.values[#metrics[state.gathering].points.values]));
+            imgui.SetTooltip(string.format("Yields/HR (%.2f)", metrics[state.gathering].points.yields[#metrics[state.gathering].points.yields]));
         else
             imgui.SetTooltip("");
         end
@@ -576,7 +576,7 @@ ashita.register_event('render', function()
     if imguiShowToolTip("Plot lines of the estimated value per hour (Click on the plot to cycle its label displays).", settings.general.showToolTips) then
         imgui.SameLine(30.0);
     end
-    imgui.PushStyleColor(ImGuiCol_Text, 1, 1, 1, 0.618);
+    imgui.PushStyleColor(ImGuiCol_Text, 1, 1, 0.54, 1);
     imgui.PlotLines("", plotValues, #plotValues, 0, state.values.labelPlotValues, FLT_MIN, FLT_MAX, plotWidth, 30);
     imgui.PopStyleColor()
     if imgui.IsItemClicked() then

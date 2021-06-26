@@ -39,32 +39,46 @@ require 'common'
 require 'ffxi.enums'
 require 'timer'
 
+--[[ #TODOs & Notes
+    - add ability to change window size
+    - add sound alerts
+    - sort yields by weights/alphabet
+    - add yield coloring
+    - update about
+    - use key to exit modals, update modals with this info
+    - add option to use stack prices
+    - generate reports on zone change and reset (add option to opt out)
+    - adjust value when prices update?
+    - add other gathering data
+    - add documentation
+    - update ver
+    - cleanup code
+--]]
+
 ----------------------------------------------------------------------------------------------------
 -- Variables
 ----------------------------------------------------------------------------------------------------
-local settings           = table.copy(defaultSettingsTemplate);
-local state              = table.copy(stateTemplate);
-local metrics            = {}
+local settings = table.copy(defaultSettingsTemplate);
+local state    = table.copy(stateTemplate);
+local metrics  = {}
 local window =
 {
-    width    = 240.0,
-    height   = 475.0,
-    paddingX = 5.0,
-    paddingY = 5.0,
-    spacingX = 5.0,
-    spacingY = 5.0,
+    height   = 500.0,
+    width    = 250.0,
+    padX     = 5.0,
+    padY     = 5.0,
     scale    = 1.0
 }
 
 local gatherTypes =
 {
-    [1] = { name = "harvesting", short = "ha.", target = "Harvesting Point" },
-    [2] = { name = "excavating", short = "ex.", target = "Excavation Point" },
-    [3] = { name = "logging",    short = "lo.", target = "Logging Point" },
-    [4] = { name = "mining",     short = "mi.", target = "Mining Point" },
-    [5] = { name = "clamming",   short = "cl.", target = "Clamming Point" },
-    [6] = { name = "fishing",    short = "fi.", target = nil },
-    [7] = { name = "digging",    short = "di.", target = nil }
+    [1] = { name = "harvesting", short = "ha.", target = "Harvesting Point", tool = "sickle",        toolId = 1020 },
+    [2] = { name = "excavating", short = "ex.", target = "Excavation Point", tool = "pickaxe",       toolId = 605 },
+    [3] = { name = "logging",    short = "lo.", target = "Logging Point",    tool = "hatchet",       toolId = 1021 },
+    [4] = { name = "mining",     short = "mi.", target = "Mining Point",     tool = "pickaxe",       toolId = 605 },
+    [5] = { name = "clamming",   short = "cl.", target = "Clamming Point",   tool = "clamming kit",  toolId = 511 },
+    [6] = { name = "fishing",    short = "fi.", target = nil,                tool = "bait",          toolId = 3 },
+    [7] = { name = "digging",    short = "di.", target = nil,                tool = "gysahl green",  toolId = 4545 }
 }
 
 local settingsTypes =
@@ -111,6 +125,20 @@ local metricsTotalsToolTips =
     attempts = "Total attempts at gathering.",
 }
 
+local playerStorage =
+{
+    available_pct = 100
+};
+
+local ashitaResourceManager = AshitaCore:GetResourceManager();
+local ashitaChatManager     = AshitaCore:GetChatManager();
+local ashitaDataManager     = AshitaCore:GetDataManager();
+local ashitaParty           = ashitaDataManager:GetParty();
+local ashitaPlayer          = ashitaDataManager:GetPlayer();
+local ashitaInventory       = ashitaDataManager:GetInventory();
+local ashitaTarget          = ashitaDataManager:GetTarget();
+local ashitaEntity          = ashitaDataManager:GetEntity();
+
 ----------------------------------------------------------------------------------------------------
 -- UI Variables
 ---------------------------------------------------------------------------------------------------
@@ -137,40 +165,18 @@ function loadUiVariables()
 
     for k, v in pairs(settings.prices) do
         for yield, price in pairs(v) do
-            imgui.SetVarValue(uiVariables[string.format("var_%s_%s", k, string.clean(yield))][1], price)
-        end
-    end
-end
-
-----------------------------------------------------------------------------------------------------
--- func: saveSettings
--- desc: Saves the Yield settings file.
-----------------------------------------------------------------------------------------------------
-function saveSettings()
-    -- Obtain the configuration variables..
-    settings.general.opacity      = imgui.GetVarValue(uiVariables["var_WindowOpacity"][1]);
-    settings.general.targetValue  = imgui.GetVarValue(uiVariables["var_TargetValue"][1]);
-    settings.general.showToolTips = imgui.GetVarValue(uiVariables["var_ShowToolTips"][1]);
-
-    for k, v in pairs(settings.prices) do
-        for yield, price in pairs(v) do
-            settings.prices[k][yield] = tonumber(imgui.GetVarValue(uiVariables[string.format("var_%s_%s", k, string.clean(yield))][1]));
+            imgui.SetVarValue(uiVariables[string.format("var_%s_%s", k, string.clean(yield))][1], price);
         end
     end
 
-    -- Obtain the metrics..
-    settings.metrics = table.copy(metrics);
-
-    -- Obtain the state..
-    settings.state.gathering = state.gathering;
-
-    -- Save the configuration variables..
-    ashita.settings.save(_addon.path .. 'settings/settings.json', settings);
+    for k, v in pairs(metrics) do
+          imgui.SetVarValue(uiVariables[string.format("var_%s_estimatedValue", k)][1], v.estimatedValue);
+    end
 end
 
 ----------------------------------------------------------------------------------------------------
 -- func: updatePlotPoints
--- desc: Updates the display of all plots every second.
+-- desc: Update the display of all plots every second.
 ----------------------------------------------------------------------------------------------------
 function updatePlotPoints()
     if state.timers[state.gathering] then
@@ -188,6 +194,43 @@ function updatePlotPoints()
         table.insert(metrics[state.gathering].points.yields, yieldsOverTime)
         table.insert(metrics[state.gathering].points.values, valueOverTime)
     end
+end
+
+----------------------------------------------------------------------------------------------------
+-- func: updatePlayerStorage
+-- desc: Update the global playerStorage table with gathering tool counts and available inventory space every second.
+----------------------------------------------------------------------------------------------------
+function updatePlayerStorage()
+    local storage = {};
+    local containers =
+    {
+        inventory = 0,
+        satchel   = 5,
+        sack      = 6,
+        case      = 7,
+        wardrobe  = 8,
+        wardrobe2 = 10,
+        wardrobe3 = 11,
+        wardrobe4 = 12
+    }
+    for _, v in ipairs(gatherTypes) do
+        if v.name ~= "clamming" then
+            local itemId = v.toolId;
+            if v.name == "fishing" then -- check equipment (for fishing bait)
+                local itemIndex = ashitaInventory:GetEquippedItem(v.toolId).ItemIndex;
+                itemId = getItemIdFromContainers(itemIndex, containers);
+            end
+            storage[v.tool] = getItemCountFromContainers(itemId, containers);
+        else -- clamming (key item)
+            if (AshitaCore:GetDataManager():GetPlayer():HasKeyItem(v.toolId)) then
+                storage[v.tool] = 1
+            else
+                storage[v.tool] = 0
+            end
+        end
+    end
+    storage["available"], storage["available_pct"] = getAvailableStorageFromContainers({0});
+    playerStorage = storage;
 end
 
 ----------------------------------------------------------------------------------------------------
@@ -236,10 +279,115 @@ end
 ----------------------------------------------------------------------------------------------------
 function pushSettingsBtnColor(index)
     if state.settings.activeIndex == index then
-        imgui.PushStyleColor(ImGuiCol_Button, 0.21, 0.47, 0.59, 1);
+        imgui.PushStyleColor(ImGuiCol_Button, 0.21, 0.47, 0.59, 1); -- info
     else
-        imgui.PushStyleColor(ImGuiCol_Button, 0.25, 0.69, 1.0, 0.1);
+        imgui.PushStyleColor(ImGuiCol_Button, 0.25, 0.69, 1.0, 0.1); -- secondary
     end
+end
+
+----------------------------------------------------------------------------------------------------
+-- func:
+-- desc: .
+----------------------------------------------------------------------------------------------------
+function getGatherTypeData()
+    for _, v in ipairs(gatherTypes) do
+        if v.name == state.gathering then
+            return v;
+        end
+    end
+end
+
+----------------------------------------------------------------------------------------------------
+-- func:
+-- desc: .
+----------------------------------------------------------------------------------------------------
+function getItemCountFromContainers(itemId, containers)
+    itemCount = 0;
+    for containerName, containerId in pairs(containers) do
+        for i = 0, ashitaInventory:GetContainerMax(containerId), 1 do -- check containers
+            local entry = ashitaInventory:GetItem(containerId, i);
+            if entry.Id == itemId and entry.Id ~= 0 and entry.Id ~= 65535 then
+                local item = ashitaResourceManager:GetItemById(entry.Id);
+                if item then
+                    local quantity = 1;
+                    if entry.Count and item.StackSize > 1 then
+                        quantity = entry.Count;
+                    end
+                    itemCount = itemCount + quantity;
+                end
+            end
+        end
+    end
+    return itemCount;
+end
+
+----------------------------------------------------------------------------------------------------
+-- func:
+-- desc: .
+----------------------------------------------------------------------------------------------------
+function getItemIdFromContainers(itemIndex, containers)
+    itemId = nil;
+    for containerName, containerId in pairs(containers) do
+        for i = 0, ashitaInventory:GetContainerMax(containerId), 1 do -- check containers
+            local entry = ashitaInventory:GetItem(containerId, i);
+            if entry.Index == itemIndex then
+               return entry.Id;
+            end
+        end
+    end
+    return itemId;
+end
+
+----------------------------------------------------------------------------------------------------
+-- func:
+-- desc: .
+----------------------------------------------------------------------------------------------------
+function getAvailableStorageFromContainers(containers)
+    total = 0;
+    available = 0;
+    for _, containerId in pairs(containers) do
+        local max = ashitaInventory:GetContainerMax(containerId) - 1;
+        local used = 0;
+        total = total + max;
+        for i = 0, max, 1 do
+            local entry = ashitaInventory:GetItem(containerId, i);
+            if entry.Id > 0 and entry.Id < 65535 then
+                used = used + 1;
+            end
+        end
+        available = available + (max - used);
+    end
+    return available, math.floor(available/total*100); -- pct
+end
+
+----------------------------------------------------------------------------------------------------
+-- func: saveSettings
+-- desc: Saves the Yield settings file.
+----------------------------------------------------------------------------------------------------
+function saveSettings()
+    -- Obtain the configuration variables..
+    settings.general.opacity      = imgui.GetVarValue(uiVariables["var_WindowOpacity"][1]);
+    settings.general.targetValue  = imgui.GetVarValue(uiVariables["var_TargetValue"][1]);
+    settings.general.showToolTips = imgui.GetVarValue(uiVariables["var_ShowToolTips"][1]);
+
+    for k, v in pairs(settings.prices) do
+        for yield, price in pairs(v) do
+            settings.prices[k][yield] = tonumber(imgui.GetVarValue(uiVariables[string.format("var_%s_%s", k, string.clean(yield))][1]));
+        end
+    end
+
+    for _, v in ipairs(gatherTypes) do
+        metrics[v.name].estimatedValue = tonumber(imgui.GetVarValue(uiVariables[string.format("var_%s_estimatedValue", v.name)][1]))
+    end
+
+    -- Obtain the metrics..
+    settings.metrics = table.copy(metrics);
+
+    -- Obtain the state..
+    settings.state.gathering = state.gathering;
+
+    -- Save the configuration variables..
+    ashita.settings.save(_addon.path .. 'settings/settings.json', settings);
 end
 
 ----------------------------------------------------------------------------------------------------
@@ -257,24 +405,24 @@ ashita.register_event('load', function()
         _addon.path .. '/settings/settings.json', settings
     )
 
-    -- Populate the metrics table..
+    -- loop through gathering types..
     for _, v in ipairs(gatherTypes) do
+        -- Populate the metrics table..
         if table.haskey(settings.metrics, v.name) then
             metrics[v.name] = table.copy(settings.metrics[v.name]);
         else
             metrics[v.name] = table.copy(metricsTemplate);
         end
-    end
-
-    -- Initialize state timers..
-    for _, v in ipairs(gatherTypes) do
+        -- Initialize state timers..
         state.timers[v.name] = false;
+        -- Add estimated value ui variables...
+        uiVariables[string.format("var_%s_estimatedValue", v.name)] = { nil, ImGuiVar_UINT32, 0 }
     end
 
     -- Update saved gathering state..
     state.gathering = settings.state.gathering;
 
-    -- Add price uiVariables from settings..
+    -- Add price ui variables from settings..
     for k, v in pairs(settings.prices) do
         for yield, price in pairs(v) do
             uiVariables[string.format("var_%s_%s", k, string.clean(yield))] = { nil, ImGuiVar_UINT32, 0 }
@@ -293,12 +441,15 @@ ashita.register_event('load', function()
         end
     end
 
-    -- Create plots timer..
+    -- Create timers..
     if ashita.timer.create_timer("updatePlotPoints") then
         ashita.timer.adjust_timer("updatePlotPoints", 1, 0, updatePlotPoints)
         ashita.timer.start_timer("updatePlotPoints")
     end
-
+    if ashita.timer.create_timer("updatePlayerStorage") then
+        ashita.timer.adjust_timer("updatePlayerStorage", 1, 0, updatePlayerStorage)
+        ashita.timer.start_timer("updatePlayerStorage")
+    end
     -- Load ui variables from the settings file..
     loadUiVariables();
 end)
@@ -432,6 +583,7 @@ ashita.register_event('incoming_text', function(mode, message, modifiedmode, mod
         state.attempting = false;
         curVal = metrics[state.gathering].estimatedValue;
         metrics[state.gathering].estimatedValue = curVal + val;
+        imgui.SetVarValue(uiVariables[string.format("var_%s_estimatedValue", state.gathering)][1], metrics[state.gathering].estimatedValue);
     end
     return false;
 end);
@@ -442,28 +594,25 @@ end);
 -- desc: Called when the addon is rendering.
 ----------------------------------------------------------------------------------------------------
 ashita.register_event('render', function()
-    local height = 487.0;
-    local width = 242.0;
-    local paddingX = 5.0;
-    local paddingY = 5.0;
-    local spacing = 5.0;
-    local scale = 1.0;
-
     --imgui.SetWindowFontScale(scale)
-    imgui.SetNextWindowSize(width, height, ImGuiSetCond_Always);
+    imgui.SetNextWindowSize(window.width, window.height, ImGuiSetCond_Always);
     --print(fontSize);
     imgui.PushStyleVar(ImGuiStyleVar_WindowRounding, 5.0);
     imgui.PushStyleVar(ImGuiStyleVar_Alpha, settings.general.opacity);
-    imgui.PushStyleVar(ImGuiStyleVar_WindowPadding, paddingX, paddingY);
+    imgui.PushStyleVar(ImGuiStyleVar_WindowPadding, window.padX, window.padY);
+    -- MAIN
     imgui.Begin(string.format("%s - v%s", _addon.name, _addon.version), imgui.GetVarValue(uiVariables['var_WindowVisible'][1]), imgui.bor(ImGuiWindowFlags_MenuBar, ImGuiWindowFlags_NoResize))
-    imgui.SetWindowFontScale(scale)
+    imgui.SetWindowFontScale(window.scale)
     --print(imgui.GetContentRegionAvailWidth() .." ".. imgui.GetWindowWidth())
     --print(imgui.CalcItemWidth());
     --imgui.PushStyleVar(ImGuiStyleVar_WindowMinSize, width, height);
+    --imgui.PushStyleColor(ImGuiCol_Button, 0.25, 0.69, 0.87, 1); -- primary
+
+    -- MAIN_MENU
     imgui.BeginMenuBar()
     for _, v in ipairs(gatherTypes) do
         if v.name == state.gathering then
-            imgui.PushStyleColor(ImGuiCol_Button, 0.21, 0.47, 0.59, 1);
+            imgui.PushStyleColor(ImGuiCol_Button, 0.21, 0.47, 0.59, 1); -- info
             if imgui.SmallButton(string.upperfirst(v.short)) then state.gathering = v.name; state.settings.setPrices.gathering = state.gathering; end
             imgui.PopStyleColor();
         else
@@ -472,21 +621,24 @@ ashita.register_event('render', function()
         if imgui.IsItemHovered() then
             imgui.SetTooltip(string.upperfirst(v.name));
         end
-        imgui.SameLine(0.0, spacing);
+        imgui.SameLine(0.0, 6.5);
     end
     imgui.EndMenuBar();
-
+    -- /MAIN_MENU
     imguiHalfSep();
 
+    -- MAIN_HEADER
     imgui.BeginChild("Header", -1, 15)
     if imguiShowToolTip(string.format("Progress towards your target value (adjusted within settings)."), settings.general.showToolTips) then
         imgui.SameLine(24.0)
     end
-    imgui.PushStyleColor(ImGuiCol_Text, 1, 1, 0.54, settings.general.opacity);
+
     local progress = calcTargetProgress()
+    imgui.PushStyleColor(ImGuiCol_Text, 1, 1, 0.54, 1); -- warn
     imgui.ProgressBar(progress, -1, 15, string.format("%s/%s", metrics[state.gathering].estimatedValue, settings.general.targetValue))
     imgui.PopStyleColor();
     imgui.EndChild();
+    -- /MAIN_HEADER
 
     imguiHalfSep(true);
 
@@ -498,12 +650,49 @@ ashita.register_event('render', function()
         imgui.SameLine();
         imgui.Text(metrics[state.gathering].totals[metric])
     end
+
+    if imguiShowToolTip("Total gathering tools on hand.", settings.general.showToolTips) then
+        imgui.SameLine(30.0);
+    end
+
+    local gatherData = getGatherTypeData();
+    local toolName = string.lowerToTitle(gatherData.tool)
+    if gatherData.name ~= "fishing" then
+        toolName = toolName.."s"
+    end
+    imgui.Text(toolName..":");
+    imgui.SameLine();
+    imgui.Text(playerStorage[gatherData.tool] or 0);
+
+    if imguiShowToolTip("Total inventory slots available (main inventory only).", settings.general.showToolTips) then
+        imgui.SameLine(30.0);
+    end
+
+    local availPct = playerStorage['available_pct'];
+    if availPct < 50 and availPct >= 25 then
+        imgui.PushStyleColor(ImGuiCol_Text, 1, 1, 0.54, 1); -- warn
+    elseif availPct < 25 then
+        imgui.PushStyleColor(ImGuiCol_Text, 1, 0.615, 0.615, 1); -- danger
+    else
+        imgui.PushStyleColor(ImGuiCol_Text, 0.77, 0.83, 0.80, 1); -- plain
+    end
+
+    imgui.Text("Inventory:")
+    imgui.SameLine();
+    imgui.Text(playerStorage['available'] or 0);
+    imgui.PopStyleColor();
+
     if imguiShowToolTip(string.format("Time passed since your first %s attempt or when the timer was manually started.", string.upperfirst(state.gathering)), settings.general.showToolTips) then
         imgui.SameLine(30.0);
     end
     imgui.Text("Time Passed: ");
     imgui.SameLine();
-    imgui.Text(os.date("!%X", (metrics[state.gathering].secondsPassed)))
+
+    local r, g, b, a = 1, 0.615, 0.615, 1 -- danger
+    if state.timers[state.gathering] then
+        r, g, b, a = 0.77, 0.83, 0.80, 1 -- plain
+    end
+    imgui.TextColored(r, g, b, a, os.date("!%X", (metrics[state.gathering].secondsPassed)))
 
     imgui.Spacing();
     if imguiShowToolTip(string.format("Start, stop, or clear the %s timer.", string.upperfirst(state.gathering)), settings.general.showToolTips) then
@@ -529,61 +718,66 @@ ashita.register_event('render', function()
 
     imguiFullSep();
 
-    imgui.PushStyleColor(ImGuiCol_Text, 0.39, 0.96, 0.13, settings.general.opacity);
-    if imguiShowToolTip(string.format("Estimated value of all %s yields (yield prices adjusted within settings).", string.upperfirst(state.gathering)), settings.general.showToolTips) then
+    imgui.PushStyleColor(ImGuiCol_Text, 0.39, 0.96, 0.13, 1); -- success
+    if imguiShowToolTip(string.format("Editable estimated value of all %s yields (yield prices adjusted within settings).", string.upperfirst(state.gathering)), settings.general.showToolTips) then
         imgui.SameLine(30.0);
     end
-    imgui.Text("Value (estd.): ");
-
-    imgui.SameLine();
-    imgui.Text(metrics[state.gathering].estimatedValue);
+    imgui.Text("Value:")
+    if settings.general.showToolTips then
+        imgui.SameLine(80);
+    else
+        imgui.SameLine();
+    end
+    if (imgui.InputInt('', uiVariables[string.format("var_%s_estimatedValue", state.gathering)][1])) then
+        metrics[state.gathering].estimatedValue = imgui.GetVarValue(uiVariables[string.format("var_%s_estimatedValue", state.gathering)][1]);
+    end
     imgui.PopStyleColor();
-
     imguiFullSep();
-
-    local plotWidth = width-paddingX*2;
+    local plotWidth = window.width-window.padX*2;
     if settings.general.showToolTips then plotWidth = plotWidth - 25 end
     local plotYields = metrics[state.gathering].points.yields;
-    switch(state.values.yieldsLabelIndex) : caseof
+    local yieldsLabelMap =
     {
-        [1] = function() state.values.labelPlotYields = string.format("Yields/HR (%.2f)", metrics[state.gathering].points.yields[#metrics[state.gathering].points.yields]) end,
-        [2] = function() state.values.labelPlotYields = string.format("%.2f/HR", metrics[state.gathering].points.yields[#metrics[state.gathering].points.yields]) end,
-        ["default"] = function() state.values.labelPlotYields = "" end
+        [1] = string.format("Yields/HR (%.2f)", metrics[state.gathering].points.yields[#metrics[state.gathering].points.yields]),
+        [2] = string.format("%.2f/HR", metrics[state.gathering].points.yields[#metrics[state.gathering].points.yields]),
+        [3] = ""
     }
+    local plotYieldsLabel = yieldsLabelMap[state.values.yieldsLabelIndex];
     if imguiShowToolTip(string.format("Plot histogram of %s yields per hour (click the on plot to cycle its label displays).", string.upperfirst(state.gathering)), settings.general.showToolTips) then
         imgui.SameLine(30.0);
     end
-    imgui.PushStyleColor(ImGuiCol_Text, 1, 1, 0.54, 1);
-    imgui.PlotHistogram("", plotYields, #plotYields, 0, state.values.labelPlotYields, FLT_MIN, FLT_MAX, plotWidth, 30);
+    imgui.PushStyleColor(ImGuiCol_Text, 1, 1, 0.54, 1); -- warn
+    imgui.PlotHistogram("", plotYields, #plotYields, 0, plotYieldsLabel, FLT_MIN, FLT_MAX, plotWidth, 30);
     imgui.PopStyleColor()
     if imgui.IsItemClicked() then
         state.values.yieldsLabelIndex = cycleIndex(state.values.yieldsLabelIndex, 1, 3);
     end
     if imgui.IsItemHovered() then
-        if state.values.labelPlotYields == "" then
+        if plotYieldsLabel == "" then
             imgui.SetTooltip(string.format("Yields/HR (%.2f)", metrics[state.gathering].points.yields[#metrics[state.gathering].points.yields]));
         else
             imgui.SetTooltip("");
         end
     end
     local plotValues = metrics[state.gathering].points.values;
-    switch(state.values.valuesLabelIndex) : caseof
+    local valuesLabelMap =
     {
-        [1] = function() state.values.labelPlotValues = string.format("Value/HR (%.2f)", metrics[state.gathering].points.values[#metrics[state.gathering].points.values]) end,
-        [2] = function() state.values.labelPlotValues = string.format("%.2f/HR", metrics[state.gathering].points.values[#metrics[state.gathering].points.values]) end,
-        ["default"] = function() state.values.labelPlotValues = "" end
+        [1] = string.format("Value/HR (%.2f)", metrics[state.gathering].points.values[#metrics[state.gathering].points.values]),
+        [2] = string.format("%.2f/HR", metrics[state.gathering].points.values[#metrics[state.gathering].points.values]),
+        [3] = ""
     }
+    local plotValuesLabel = valuesLabelMap[state.values.valuesLabelIndex];
     if imguiShowToolTip("Plot lines of the estimated value per hour (Click on the plot to cycle its label displays).", settings.general.showToolTips) then
         imgui.SameLine(30.0);
     end
-    imgui.PushStyleColor(ImGuiCol_Text, 1, 1, 0.54, 1);
-    imgui.PlotLines("", plotValues, #plotValues, 0, state.values.labelPlotValues, FLT_MIN, FLT_MAX, plotWidth, 30);
+    imgui.PushStyleColor(ImGuiCol_Text, 1, 1, 0.54, 1); -- warn
+    imgui.PlotLines("", plotValues, #plotValues, 0, plotValuesLabel, FLT_MIN, FLT_MAX, plotWidth, 30);
     imgui.PopStyleColor()
     if imgui.IsItemClicked() then
          state.values.valuesLabelIndex = cycleIndex(state.values.valuesLabelIndex, 1, 3);
     end
     if imgui.IsItemHovered() then
-        if state.values.labelPlotValues == "" then
+        if plotValuesLabel == "" then
             imgui.SetTooltip(string.format("Value/HR (%.2f)", metrics[state.gathering].points.values[#metrics[state.gathering].points.values]));
         else
             imgui.SetTooltip("");
@@ -592,24 +786,37 @@ ashita.register_event('render', function()
 
     imguiFullSep();
 
-    if imguiShowToolTip(string.format("Scrollable List of current %s yields and their amounts.", string.upperfirst(state.gathering)), settings.general.showToolTips) then
+    if imguiShowToolTip(string.format("Scrollable List of current %s yields and their amounts (click on the list to cycle its sorting methods).", string.upperfirst(state.gathering)), settings.general.showToolTips) then
         imgui.SameLine(30.0);
     end
 
-    imgui.BeginChild("Scrolling", plotWidth, 140, true);
-
-    for item, total in pairs(metrics[state.gathering]["yields"]) do
+    -- MAIN_SCROLLING
+    imgui.BeginChild("Scrolling", plotWidth, 112, true);
+    yieldsSortMap =
+    {
+        [1] = { table.sortKeysByAlphabet(metrics[state.gathering].yields, false), "Alphabetical (DESC)" },
+        [2] = { table.sortKeysByAlphabet(metrics[state.gathering].yields, true), "Alphabetical (ASC)" },
+        [3] = { table.sortbykey(metrics[state.gathering].yields, false), "Count (DESC)" },
+        [4] = { table.sortbykey(metrics[state.gathering].yields, true), "Count (ASC)" }
+    }
+    for _, item in pairs(yieldsSortMap[state.values.yieldSortIndex][1]) do
         imgui.Text(item..": ");
         imgui.SameLine();
-        imgui.Text(total);
+        imgui.Text(metrics[state.gathering].yields[item]);
     end
-
     imgui.EndChild();
+    if imgui.IsItemClicked() then
+        state.values.yieldSortIndex = cycleIndex(state.values.yieldSortIndex, 1, 4);
+    end
+    if imgui.IsItemHovered() then
+        imgui.SetTooltip(string.format("Sort Type: %s", yieldsSortMap[state.values.yieldSortIndex][2]));
+    end
+    -- /MAIN_SCROLLING
 
     imguiFullSep();
 
-    spacing = 2.0;
     local modalConfirmPromptTemplate = "Are you sure you want to %s?";
+
     if imgui.Button("Exit") then
         state.actions.modalConfirmAction = function() AshitaCore:GetChatManager():QueueCommand('/addon unload yield', 1); end
         state.values.modalConfirmPrompt = string.format(modalConfirmPromptTemplate, "Exit");
@@ -617,7 +824,7 @@ ashita.register_event('render', function()
         imgui.OpenPopup("Yield Confirm")
     end
 
-    imgui.SameLine(0.0, spacing);
+    imgui.SameLine(0.0, 4.0);
 
     if imgui.Button("Reload") then
         state.actions.modalConfirmAction = function() AshitaCore:GetChatManager():QueueCommand('/addon reload yield', 1); end
@@ -626,7 +833,7 @@ ashita.register_event('render', function()
         imgui.OpenPopup("Yield Confirm")
     end
 
-    imgui.SameLine(0.0, spacing);
+    imgui.SameLine(0.0, 4.0);
 
     if imgui.Button("Reset") then
         state.actions.modalConfirmAction = function()
@@ -636,6 +843,8 @@ ashita.register_event('render', function()
             for k, v in pairs(state.timers) do
                 state.timers[k] = false
             end
+            -- Reset ui variables..
+            imgui.SetVarValue(uiVariables[string.format("var_%s_estimatedValue", state.gathering)][1], metrics[state.gathering].estimatedValue);
         end
         state.values.modalConfirmPrompt = string.format(modalConfirmPromptTemplate, "Reset");
         state.values.modalConfirmHelp = string.format("(Current %s data will be lost.)", string.upperfirst(state.gathering));
@@ -643,20 +852,20 @@ ashita.register_event('render', function()
         imgui.OpenPopup("Yield Confirm")
     end
 
-    imgui.SameLine(0.0, spacing);
+    imgui.SameLine(0.0, 4.0);
 
     if imgui.Button("Settings") then
         imgui.OpenPopup("Yield Settings");
     end
 
-    imgui.SameLine(0.0, spacing);
+    imgui.SameLine(0.0, 4.0);
     if imgui.Button("Help") then
-
     end
 
     --table.insert(metrics[state.gathering]["points"], math.random(-10000, 10000))
-    height = 505.0;
-    imgui.SetNextWindowSize(width*2, 445, ImGuiSetCond_Always);
+    imgui.SetNextWindowSize(window.width*2, 445, ImGuiSetCond_Always);
+
+    -- SETTINGS
     if imgui.BeginPopupModal("Yield Settings", imgui.GetVarValue(uiVariables['var_WindowVisible'][1]), imgui.bor(ImGuiWindowFlags_MenuBar, ImGuiWindowFlags_NoResize)) then
         imgui.BeginMenuBar()
         for i, v in ipairs(settingsTypes) do
@@ -670,81 +879,17 @@ ashita.register_event('render', function()
         end
         imgui.EndMenuBar();
 
-        if state.settings.activeIndex == 1 then
-            imgui.BeginChild("General", -1, 365, imgui.GetVarValue(uiVariables['var_WindowVisible'][1]))
-            imgui.Spacing();
-            if imguiShowToolTip("Current alpha channel value of all Yield windows.", settings.general.showToolTips) then
-                imgui.SameLine(33.0);
-            end
-            if (imgui.SliderFloat("Window Opacity", uiVariables['var_WindowOpacity'][1], 0.25, 1.0, "%1.2f")) then
-                settings.general.opacity = imgui.GetVarValue(uiVariables['var_WindowOpacity'][1])
-            end
-            imgui.Spacing();
-            if imguiShowToolTip("Amount you would like to earn this session (affects progress bar).", settings.general.showToolTips) then
-                imgui.SameLine(33.0);
-            end
-            if (imgui.InputInt("Target Value", uiVariables['var_TargetValue'][1])) then
-                settings.general.targetValue = imgui.GetVarValue(uiVariables['var_TargetValue'][1]);
-            end
-            imgui.Spacing();
-             if imguiShowToolTip("Toggles the display of (?)s and their tooltips.", settings.general.showToolTips) then
-                imgui.SameLine(33.0);
-            end
-            if (imgui.Checkbox('Show (?) Tooltips', uiVariables['var_ShowToolTips'][1])) then
-                settings.general.showToolTips = imgui.GetVarValue(uiVariables['var_ShowToolTips'][1]);
-            end
-            imgui.EndChild()
-        elseif state.settings.activeIndex == 2 then
-            local currentPrices = state.settings.setPrices.gathering
-            imgui.BeginChild("Set Prices", -1, 365, imgui.GetVarValue(uiVariables['var_WindowVisible'][1]), imgui.bor(ImGuiWindowFlags_MenuBar, ImGuiWindowFlags_NoResize))
-            imgui.BeginMenuBar()
-            for _, v in ipairs(gatherTypes) do
-                if v.name == state.settings.setPrices.gathering then
-                    imgui.PushStyleColor(ImGuiCol_Button, 0.21, 0.47, 0.59, 1);
-                    if imgui.SmallButton(string.upperfirst(v.short)) then state.settings.setPrices.gathering = v.name end
-                    imgui.PopStyleColor();
-                else
-                    if imgui.SmallButton(string.upperfirst(v.short)) then state.settings.setPrices.gathering = v.name end
-                end
-                if imgui.IsItemHovered() then
-                    imgui.SetTooltip(string.upperfirst(v.name));
-                end
-                imgui.SameLine(0.0, 5.0);
-            end
-            imgui.EndMenuBar()
+        -- render settings pages..
+        imgui.BeginGroup();
+        switch(state.settings.activeIndex) : caseof
+        {
+            [1] = function() renderSettingsGeneral() end,
+            [2] = function() renderSettingsSetPrices() end,
+            [3] = function() renderSettingsSetAlerts() end,
+            [4] = function() renderSettingsAbout() end,
+        };
+        imgui.EndGroup();
 
-            imgui.Spacing();
-
-            imgui.BeginChild("Scrolling", -1, 329)
-            for v, k in pairs(table.sortKeysByAlphabet(settings.prices[state.settings.setPrices.gathering], true)) do
-                local var = string.format("var_%s_%s", state.settings.setPrices.gathering, string.clean(k))
-                if imguiShowToolTip(string.format("Set the current market price for a single %s.", k), settings.general.showToolTips) then
-                    imgui.SameLine(30.0);
-                end
-                if (imgui.InputInt(k, uiVariables[var][1])) then
-                    settings.prices[state.settings.setPrices.gathering][k] = imgui.GetVarValue(uiVariables[string.format("var_%s_%s", state.settings.setPrices.gathering, string.clean(k))][1]);
-                end
-            end
-            imgui.EndChild()
-            imgui.EndChild()
-        elseif state.settings.activeIndex == 3 then
-            imgui.BeginChild("Set Alerts", -1, 365, true);
-            imgui.Text("Set sound alerts for specific yields.");
-            imgui.Spacing();
-            imgui.Text("Comming Soon..");
-            imgui.EndChild();
-        elseif state.settings.activeIndex == 4 then
-            imgui.BeginChild("About", -1, 365, true);
-            imgui.PushTextWrapPos((width-paddingX*2)*2)
-            for _, v in ipairs(helpTable.about) do
-                imgui.Text(string.strip_colors(v));
-                imgui.Spacing();
-            end
-            imgui.Spacing();
-            imgui.Text("Special thanks to Narpt (https://www.twitch.tv/narpt) for his awesome streams and the idea to make this!");
-            imgui.PopTextWrapPos()
-            imgui.EndChild();
-        end
         imgui.Spacing();
         imgui.SetCursorPosX(imgui.GetWindowWidth() - 40);
         if imgui.Button("Done") or state.initializing then
@@ -755,14 +900,16 @@ ashita.register_event('render', function()
         imgui.EndPopup();
         imgui.PopStyleVar();
     end
+    -- /SETTINGS
 
-    imgui.SetNextWindowSize(width*1.25, 93, ImGuiSetCond_Always);
+    -- CONFIRM
+    imgui.SetNextWindowSize(window.width*1.25, 93, ImGuiSetCond_Always);
     if imgui.BeginPopupModal("Yield Confirm", imgui.GetVarValue(uiVariables['var_WindowVisible'][1]), imgui.bor(ImGuiWindowFlags_NoResize)) then
         imgui.Text(state.values.modalConfirmPrompt);
         if state.values.modalConfirmHelp then
             local r, g, b, a = 0.39, 0.96, 0.13, 1
             if state.values.modalConfirmDanger then
-                r, g, b, a = 0.7, 0, 0, 1
+                r, g, b, a =  1, 0.615, 0.615, 1
             end
             imgui.TextColored(r, g, b, a, state.values.modalConfirmHelp);
         end
@@ -782,14 +929,16 @@ ashita.register_event('render', function()
         state.values.modalConfirmHelp   = ""
         state.values.modalConfirmDanger = false
     end
+    -- /CONFIRM
     imgui.End();
     state.initializing = false
+    -- /MAIN
 end);
 
 ashita.register_event('outgoing_packet', function(id, size, packet, packet_modified, blocked)
     if id == 0x36 then -- Ha., Ex., Lo., Mi., Cl.
         for k, v in pairs(gatherTypes) do
-            if v.target == AshitaCore:GetDataManager():GetTarget():GetTargetName() then
+            if v.target == ashitaTarget:GetTargetName() then
                 state.attempting = true;
                 state.attemptType = v.name;
                 state.gathering = v.name;
@@ -799,3 +948,99 @@ ashita.register_event('outgoing_packet', function(id, size, packet, packet_modif
     end
     return false;
 end);
+
+----------------------------------------------------------------------------------------------------
+-- func: renderSettingsGeneral
+-- desc: Renders the General settings.
+----------------------------------------------------------------------------------------------------
+function renderSettingsGeneral()
+    imgui.BeginChild("General", -1, 365, imgui.GetVarValue(uiVariables['var_WindowVisible'][1]))
+    imgui.Spacing();
+    if imguiShowToolTip("Current alpha channel value of all Yield windows.", settings.general.showToolTips) then
+        imgui.SameLine(33.0);
+    end
+    if (imgui.SliderFloat("Window Opacity", uiVariables['var_WindowOpacity'][1], 0.25, 1.0, "%1.2f")) then
+        settings.general.opacity = imgui.GetVarValue(uiVariables['var_WindowOpacity'][1])
+    end
+    imgui.Spacing();
+    if imguiShowToolTip("Amount you would like to earn this session (affects progress bar).", settings.general.showToolTips) then
+        imgui.SameLine(33.0);
+    end
+    if (imgui.InputInt("Target Value", uiVariables['var_TargetValue'][1])) then
+        settings.general.targetValue = imgui.GetVarValue(uiVariables['var_TargetValue'][1]);
+    end
+    imgui.Spacing();
+     if imguiShowToolTip("Toggles the display of (?)s and their tooltips.", settings.general.showToolTips) then
+        imgui.SameLine(33.0);
+    end
+    if (imgui.Checkbox('Show (?) Tooltips', uiVariables['var_ShowToolTips'][1])) then
+        settings.general.showToolTips = imgui.GetVarValue(uiVariables['var_ShowToolTips'][1]);
+    end
+    imgui.EndChild()
+end
+
+----------------------------------------------------------------------------------------------------
+-- func: renderSettingsSetPrices
+-- desc: Renders the Set Prices settings.
+----------------------------------------------------------------------------------------------------
+function renderSettingsSetPrices()
+    local currentPrices = state.settings.setPrices.gathering
+    imgui.BeginChild("Set Prices", -1, 365, imgui.GetVarValue(uiVariables['var_WindowVisible'][1]), imgui.bor(ImGuiWindowFlags_MenuBar, ImGuiWindowFlags_NoResize))
+    imgui.BeginMenuBar()
+    for _, v in ipairs(gatherTypes) do
+        if v.name == state.settings.setPrices.gathering then
+            imgui.PushStyleColor(ImGuiCol_Button, 0.21, 0.47, 0.59, 1); -- info
+            if imgui.SmallButton(string.upperfirst(v.short)) then state.settings.setPrices.gathering = v.name end
+            imgui.PopStyleColor();
+        else
+            if imgui.SmallButton(string.upperfirst(v.short)) then state.settings.setPrices.gathering = v.name end
+        end
+        if imgui.IsItemHovered() then
+            imgui.SetTooltip(string.upperfirst(v.name));
+        end
+        imgui.SameLine(0.0, 5.0);
+    end
+    imgui.EndMenuBar()
+    imgui.Spacing();
+    imgui.BeginChild("Scrolling", -1, 329)
+    for v, k in pairs(table.sortKeysByAlphabet(settings.prices[state.settings.setPrices.gathering], true)) do
+        local var = string.format("var_%s_%s", state.settings.setPrices.gathering, string.clean(k))
+        if imguiShowToolTip(string.format("Set the current market price for a single %s.", k), settings.general.showToolTips) then
+            imgui.SameLine(30.0);
+        end
+        if (imgui.InputInt(k, uiVariables[var][1])) then
+            settings.prices[state.settings.setPrices.gathering][k] = imgui.GetVarValue(uiVariables[string.format("var_%s_%s", state.settings.setPrices.gathering, string.clean(k))][1]);
+        end
+    end
+    imgui.EndChild()
+    imgui.EndChild()
+end
+
+----------------------------------------------------------------------------------------------------
+-- func: renderSettingsSetAlerts
+-- desc: Renders the Set Alerts settings.
+----------------------------------------------------------------------------------------------------
+function renderSettingsSetAlerts()
+    imgui.BeginChild("Set Alerts", -1, 365, true);
+    imgui.Text("Set sound alerts for specific yields.");
+    imgui.Spacing();
+    imgui.Text("Comming Soon..");
+    imgui.EndChild();
+end
+
+----------------------------------------------------------------------------------------------------
+-- func: renderSettingsAbout
+-- desc: Renders the About section in settings.
+----------------------------------------------------------------------------------------------------
+function renderSettingsAbout()
+    imgui.BeginChild("About", -1, 365, true);
+    imgui.PushTextWrapPos((window.width-window.padX*2)*2)
+    for _, v in ipairs(helpTable.about) do
+        imgui.Text(string.strip_colors(v));
+        imgui.Spacing();
+    end
+    imgui.Spacing();
+    imgui.Text("Special thanks to Narpt (https://www.twitch.tv/narpt) for his awesome streams and the idea to make this!");
+    imgui.PopTextWrapPos()
+    imgui.EndChild();
+end

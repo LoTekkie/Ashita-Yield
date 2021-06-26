@@ -38,10 +38,9 @@ stateTemplate =
         modalConfirmPrompt = "Are you sure?",
         modalConfirmHelp   = "",
         modalConfirmDanger = false,
-        labelPlotYields    = "",
-        labelPlotValues    = "",
-        yieldsLabelIndex   = 1,
-        valuesLabelIndex   = 1
+        yieldsLabelIndex   = 1, -- Full
+        valuesLabelIndex   = 1, -- Full
+        yieldSortIndex     = 3  -- Count (DESC)
     },
     actions =
     {

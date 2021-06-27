@@ -21,6 +21,7 @@ metricsTemplate =
 -- Template for Yield state.
 stateTemplate =
 {
+    window       = {},
     initializing = true,
     attempting   = false,
     attemptType  = "harvesting",
@@ -40,7 +41,8 @@ stateTemplate =
         modalConfirmDanger = false,
         yieldsLabelIndex   = 1, -- Full
         valuesLabelIndex   = 1, -- Full
-        yieldSortIndex     = 3  -- Count (DESC)
+        yieldSortIndex     = 3, -- Count (DESC)
+        windowScaleIndex   = 1, -- Default
     },
     actions =
     {
@@ -53,13 +55,15 @@ defaultSettingsTemplate =
 {
     general =
     {
-        opacity         = 0.62,
-        targetValue     = 0,
-        showToolTips    = true
+        opacity          = 0.62,
+        targetValue      = 0,
+        showToolTips     = true,
+        windowScaleIndex = 0,
+        useStackPrices   = false
     },
     state =
     {
-        gathering  = "harvesting"
+        gathering  = "harvesting",
     },
     prices =
     {

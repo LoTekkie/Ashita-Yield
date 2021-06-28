@@ -209,10 +209,46 @@ end
 -- func:
 -- desc: .
 ----------------------------------------------------------------------------------------------------
-function cycleIndex(index, min, max)
-    local newIndex = index + 1;
+function cycleIndex(index, min, max, dir)
+    if dir == nil then dir = 1 end;
+    local newIndex = index + dir;
     if newIndex > max then
         newIndex = min
     end
+    if newIndex < min then
+        newIndex = max
+    end
     return newIndex;
+end
+
+----------------------------------------------------------------------------------------------------
+-- func: colorTableToInt
+-- desc: Converts an imgui color table to a D3DCOLOR int.
+----------------------------------------------------------------------------------------------------
+function colorTableToInt(t)
+    local a = t[4];
+    local r = t[1] * 255;
+    local g = t[2] * 255;
+    local b = t[3] * 255;
+
+    -- Handle 3 and 4 color tables..
+    if (a == nil) then
+        a = 255;
+    else
+        a = a * 255;
+    end
+
+    return math.d3dcolor(a, r, g, b);
+end
+
+----------------------------------------------------------------------------------------------------
+-- func: colorToRGBA
+-- desc: Converts a color to its rgba values.
+----------------------------------------------------------------------------------------------------
+function colorToRGBA(c)
+    local a = bit.rshift(bit.band(c, 0xFF000000), 24);
+    local r = bit.rshift(bit.band(c, 0x00FF0000), 16);
+    local g = bit.rshift(bit.band(c, 0x0000FF00), 8);
+    local b = bit.band(c, 0x000000FF);
+    return r, g, b, a;
 end

@@ -29,7 +29,9 @@ stateTemplate =
     settings =
     {
         activeIndex = 1,
-        setPrices   = { gathering = "harvesting" },
+        setPrices   = { gathering = "harvesting", priceModeChanged = false, priceEntryChanged = false },
+        setColors   = { gathering = "harvesting" },
+        setAlerts   = { gathering = "harvesting" },
         alerts      = { gathering = "harvesting" }
     },
     timers = {},
@@ -47,6 +49,7 @@ stateTemplate =
     actions =
     {
         modalConfirmAction = function() end,
+        modalCancelAction  = function() end
     }
 }
 
@@ -55,58 +58,76 @@ defaultSettingsTemplate =
 {
     general =
     {
-        opacity          = 0.62,
-        targetValue      = 0,
-        showToolTips     = true,
-        windowScaleIndex = 0,
-        useStackPrices   = false
+        opacity             = 1.0,
+        targetValue         = 0,
+        showToolTips        = true,
+        windowScaleIndex    = 0,
+        showDetailedYields  = true,
+        yieldDetailsColor   = -3877684,
     },
     state =
     {
-        gathering  = "harvesting",
+        gathering  = "harvesting"
     },
-    prices =
+    priceModes = -- stack price by default (true).
+    {
+        harvesting = true,
+        excavating = true,
+        logging    = true,
+        mining     = true,
+        clamming   = true,
+        fishing    = true,
+        digging    = true
+    },
+    yields =
     {
         harvesting = {},
         excavating = {},
         logging = {},
         mining =
         {
-            ["Copper Ore"]       = 0,
-            ["Zinc Ore"]         = 0,
-            ["Tin Ore"]          = 0,
-            ["Iron Ore"]         = 0,
-            ["Silver Ore"]       = 0,
-            ["Darksteel Ore"]    = 0,
-            ["Gold Ore"]         = 0,
-            ["Mythril Ore"]      = 0,
-            ["Platium Ore"]      = 0,
-            ["Aluminum Ore"]     = 0,
-            ["Elemental Ore"]    = 0,
-            ["Adaman Ore"]       = 0,
-            ["Khroma Ore"]       = 0,
-            ["Luminium Ore"]     = 0,
-            ["Orichalcum Ore"]   = 0,
-            ["Pebble"]           = 0,
-            ["Flint Stone"]      = 0,
-            ["Igneous Rock"]     = 0,
-            ["Colored Rock"]     = 0,
-            ["Sulfur"]           = 0,
-            ["Pinch of Sulfur"]  = 0,
-            ["Iron Sand"]        = 0,
-            ["Bomb Ash"]         = 0,
-            ["Goblin Die"]       = 0,
-            ["Demon Horn"]       = 0,
-            ["Aht Urhgan Brass"] = 0,
-            ["Orpiment"]         = 0,
-            ["Snapping Mole"]    = 0,
-            ["Troll Pauldron"]   = 0,
-            ["Troll Vambrace"]   = 0,
-            ["Moblin Mask"]      = 0,
-            ["Moblin Helm"]      = 0,
-            ["Moblin Mail"]      = 0,
-            ["Moblin Armor"]     = 0,
-            ["Unknown"]          = 0,
+            ["Copper Ore"]       = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Zinc Ore"]         = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Tin Ore"]          = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Iron Ore"]         = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Silver Ore"]       = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Darksteel Ore"]    = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Gold Ore"]         = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Mythril Ore"]      = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Platium Ore"]      = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Aluminum Ore"]     = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Elemental Ore"]    = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Adaman Ore"]       = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Khroma Ore"]       = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Luminium Ore"]     = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Orichalcum Ore"]   = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Pebble"]           = { price = 0, stackSize = 99, color = -3877684, soundFile = "" },
+            ["Flint Stone"]      = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Igneous Rock"]     = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Red Rock"]         = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Yellow Rock"]      = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Blue Rock"]        = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Green Rock"]       = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Translucent Rock"] = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Purple Rock"]      = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["White Rock"]       = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Black Rock"]       = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Pinch of Sulfur"]  = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Iron Sand"]        = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Bomb Ash"]         = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Goblin Die"]       = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Demon Horn"]       = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Aht Urhgan Brass"] = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Orpiment"]         = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Snapping Mole"]    = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Troll Pauldron"]   = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Troll Vambrace"]   = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Moblin Mask"]      = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Moblin Helm"]      = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Moblin Mail"]      = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Moblin Armor"]     = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Slab of Plumbago"] = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Mine Gravel"]      = { price = 0, stackSize = 12, color = -3877684, soundFile = "" },
         },
         clamming = {},
         fishing = {},

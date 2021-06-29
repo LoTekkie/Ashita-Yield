@@ -134,7 +134,7 @@ ___
 - Added ability to resize window.
 - Added ability to change yield colors.
 - Added new settings options.
-- Added cyle options for yield and plot labels.
+- Added cycle options for yield and plot labels.
 - Added timer controls
 - Added tooltips
 - Added input for estimated value.
@@ -146,7 +146,6 @@ ___
 
 **v0.9.0a** - 6/19/2021  
 - Initial upload.
-- 
 ___
 ### Known Issues
 

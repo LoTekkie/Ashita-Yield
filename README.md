@@ -149,7 +149,7 @@ ___
 ___
 ### Known Issues
 
-- **Issue:** Main window resizing causes the cursor position to change making GUI interaction difficult.
+- **Issue:** Game window resizing causes the cursor position to change making GUI interaction difficult.
 - **Issue:** Yield window size changes causes fonts to scale strangely.
 
 ___    

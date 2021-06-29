@@ -44,12 +44,31 @@ local chatColors = {
 -- func:
 -- desc: .
 ----------------------------------------------------------------------------------------------------
+function displayHelp(table)
+    for index, command in pairs(table) do
+        displayResponse(command)
+    end
+end
+
+----------------------------------------------------------------------------------------------------
+-- func:
+-- desc: .
+----------------------------------------------------------------------------------------------------
+function displayResponse(response, color)
+    color = color or chatColors.info
+    print(strColor(response, color))
+end
+
+----------------------------------------------------------------------------------------------------
+-- func:
+-- desc: .
+----------------------------------------------------------------------------------------------------
 function helpCommandEntry(command, description)
-    local short_name = strColor("yld", chatColors.primary)
+    local shortName = strColor("yld", chatColors.primary)
     local command = strColor(command, chatColors.secondary)
     local sep = strColor("=>", chatColors.primary)
     local description = strColor(description, chatColors.info)
-    return string.format("%s %s %s %s", short_name, command, sep, description)
+    return string.format("%s %s %s %s", shortName, command, sep, description)
 end
 
 ----------------------------------------------------------------------------------------------------
@@ -98,15 +117,6 @@ function commandResponse(message, success)
     return string.format("%s: %s", 
         strColor(responseType, responseColor), strColor(message, chatColors.info)
     )
-end
-
-----------------------------------------------------------------------------------------------------
--- func:
--- desc: .
-----------------------------------------------------------------------------------------------------
-function displayResponse(response, color)
-    color = color or chatColors.info
-    print(strColor(response, color))
 end
 
 ----------------------------------------------------------------------------------------------------

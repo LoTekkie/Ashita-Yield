@@ -522,26 +522,26 @@ end)
 -- desc: Called when the addon is handling a command.
 ---------------------------------------------------------------------------------------------------
 ashita.register_event('command', function(command, ntype)
-    local command_args = command:lower():args();
+    local commandArgs = command:lower():args();
 
-    if not table.haskey(_addon.commands, command_args[1]) then
+    if not table.hasvalue(_addon.commands, commandArgs[1]) then
         return false;
     end
 
     local responseMessage = "";
     local success = true;
 
-    if command_args[2] == 'reload' or command_args[2] == 'r' then
+    if commandArgs[2] == 'reload' or commandArgs[2] == 'r' then
         AshitaCore:GetChatManager():QueueCommand('/addon reload yield', 1);
 
-    elseif command_args[2] == 'unload' or command_args[2] == 'u' then
+    elseif commandArgs[2] == 'unload' or commandArgs[2] == 'u' then
         response_message = 'Thank you for using Yield. Goodbye.';
         AshitaCore:GetChatManager():QueueCommand('/addon unload yield', 1);
 
-    elseif command_args[2] == 'about' or command_args[2] == 'a' then
+    elseif commandArgs[2] == 'about' or commandArgs[2] == 'a' then
         displayHelp(helpTable.about);
 
-    elseif command_args[2] == 'help' or command_args[2] == 'h' then
+    elseif commandArgs[2] == 'help' or commandArgs[2] == 'h' then
         displayHelp(helpTable.commands);
 
     else

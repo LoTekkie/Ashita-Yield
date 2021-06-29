@@ -156,7 +156,9 @@ end
 -- desc: .
 ----------------------------------------------------------------------------------------------------
 function string.lowerToTitle(s)
-    return string.gsub(" "..s, "%W%l", string.upper):sub(2);
+    s = string.gsub(" "..s, "%W%l", string.upper):sub(2);
+    s = string.gsub(s, "('[A-Z])", string.lower);
+    return s
 end
 
 ----------------------------------------------------------------------------------------------------

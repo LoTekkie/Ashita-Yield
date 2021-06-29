@@ -29,7 +29,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 _addon.name = 'Yield'
 _addon.description = 'Track and edit a variety of metrics related to gathering within a simple GUI.'
 _addon.author = 'Sjshovan (LoTekkie) Sjshovan@Gmail.com'
-_addon.version = '0.9.0a'
+_addon.version = '0.9.0b'
 _addon.commands = {'/yield', '/yld'}
 
 require('templates')
@@ -59,13 +59,13 @@ local metrics  = {}
 
 local gatherTypes =
 {
-    [1] = { name = "harvesting", short = "ha.", target = "Harvesting Point", tool = "sickle",        toolId = 1020 },
-    [2] = { name = "excavating", short = "ex.", target = "Excavation Point", tool = "pickaxe",       toolId = 605 },
-    [3] = { name = "logging",    short = "lo.", target = "Logging Point",    tool = "hatchet",       toolId = 1021 },
-    [4] = { name = "mining",     short = "mi.", target = "Mining Point",     tool = "pickaxe",       toolId = 605 },
-    [5] = { name = "clamming",   short = "cl.", target = "Clamming Point",   tool = "clamming kit",  toolId = 511 },
-    [6] = { name = "fishing",    short = "fi.", target = nil,                tool = "bait",          toolId = 3 },
-    [7] = { name = "digging",    short = "di.", target = nil,                tool = "gysahl green",  toolId = 4545 }
+    [1] = { name = "harvesting", short = "ha.", target = "Harvesting Point", tool = "sickle",        toolId = 1020, action = "harvest" },
+    [2] = { name = "excavating", short = "ex.", target = "Excavation Point", tool = "pickaxe",       toolId = 605,  action = "" },
+    [3] = { name = "logging",    short = "lo.", target = "Logging Point",    tool = "hatchet",       toolId = 1021, action = "" },
+    [4] = { name = "mining",     short = "mi.", target = "Mining Point",     tool = "pickaxe",       toolId = 605,  action = "dig up" },
+    [5] = { name = "clamming",   short = "cl.", target = "Clamming Point",   tool = "clamming kit",  toolId = 511,  action = "" },
+    [6] = { name = "fishing",    short = "fi.", target = nil,                tool = "bait",          toolId = 3,    action = "" },
+    [7] = { name = "digging",    short = "di.", target = nil,                tool = "gysahl green",  toolId = 4545, action = "" }
 }
 
 local settingsTypes =
@@ -74,8 +74,9 @@ local settingsTypes =
     [2] = { name = "setPrices" },
     [3] = { name = "setColors" },
     [4] = { name = "setAlerts" },
-    [5] = { name = "Reports" },
-    [6] = { name = "about" }
+    [5] = { name = "reports" },
+    [6] = { name = "feedback" },
+    [7] = { name = "about" }
 }
 
 local helpTable =
@@ -505,6 +506,7 @@ ashita.register_event('unload', function()
 
     -- Remove timers..
     ashita.timer.remove_timer("updatePlotPoints");
+    ashita.timer.remove_timer("updatePlayerStorage");
 
     -- Cleanup the custom variables..
     for varName, data in pairs(uiVariables) do
@@ -560,6 +562,7 @@ end)
 -- desc: Event called when the addon is asked to handle an incoming chat line.
 ---------------------------------------------------------------------------------------------------
 ashita.register_event('incoming_text', function(mode, message, modifiedmode, modifiedmessage, blocked)
+
     -- Ensure proper chat modes.
     if (mode ~= 919 or blocked or message:startswith(string.char(0x1E, 0x01))) then return false; end
 
@@ -584,33 +587,19 @@ ashita.register_event('incoming_text', function(mode, message, modifiedmode, mod
         local broken = false;
         local full = false;
 
-         switch(state.gathering) : caseof
-        {
-            ["harvesting"] = function()
-                success = false;
-                successBreak = false;
-                unable = false;
-                broken = false;
-                full = false;
-            end,
-            ["mining"] = function()
-                success = string.match(message, "^You successfully dig up a (.*)!") or string.match(message, "You dig up a (.*), but your pickaxe breaks in the process.");
-                successBreak = string.match(message, "You dig up a (.*), but your pickaxe breaks in the process.");
-                unable = message == "You are unable to mine anything.";
-                broken = string.match(message, "Your (.*) breaks!");
-                full = string.contains(message, "You cannot carry any more items.");
-            end,
-            ["default"] = function() end
-        }
-
+        local gatherData = getGatherTypeData(state.gathering);
+        successBreak = string.match(message, string.format("You %s a (.*), but your %s .*", gatherData.action, gatherData.tool));
+        success = string.match(message, string.format("^You successfully %s a (.*)!", gatherData.action)) or successBreak
+        unable = message == string.format("You are unable to %s anything.", gatherData.action);
+        broken = string.match(message, "Your (.*) breaks!");
+        full = string.contains(message, "You cannot carry any more items.");
+        print(success);
+        print(successBreak);
         if success then
-            switch(state.gathering) : caseof
-            {
-                ["mining"] = function()
-                    local chunk = string.match(success, "chunk of (.*)");
-                    if chunk then success = chunk end
-                end,
-            }
+            local of = string.match(success, "of (.*)");
+            if of then success = of end;
+        end
+        if success then
             success = string.lowerToTitle(success);
             val = getPrice(success);
             adjYield(success, 1);
@@ -621,7 +610,11 @@ ashita.register_event('incoming_text', function(mode, message, modifiedmode, mod
         elseif full then
             adjTotal("lost", 1);
         end
-        state.attempting = false;
+
+        if successful or unable or broken or full then
+            state.attempting = false;
+        end
+
         curVal = metrics[state.gathering].estimatedValue;
         metrics[state.gathering].estimatedValue = curVal + val;
         imgui.SetVarValue(uiVariables[string.format("var_%s_estimatedValue", state.gathering)][1], metrics[state.gathering].estimatedValue);
@@ -694,6 +687,9 @@ ashita.register_event('render', function()
         widthModalConfirm     = scaledFontSize * 350.0 / defaultFontSize,
         heightModalConfirm    = scaledFontSize * 102.0 / defaultFontSize,
         spaceColorDefaults    = scaledFontSize * 179.0 / defaultFontSize,
+        widthWidgetDefault    = scaledFontSize * 275.0 / defaultFontSize,
+        spaceSettingsBtn      = scaledFontSize * 6.0   / defaultFontSize * windowScale + (windowScale - 1.0) * 2,
+        spaceSettingsDefaults = scaledFontSize * 377.0 / defaultFontSize,
     }
 
     -- MAIN_MENU
@@ -843,7 +839,7 @@ ashita.register_event('render', function()
 
     -- plot yields
     local plotWidth = imgui.GetContentRegionAvailWidth();
-    if settings.general.showToolTips then plotWidth = plotWidth - ( imgui.GetFontSize() * 25 / defaultFontSize ) end
+    if settings.general.showToolTips then plotWidth = plotWidth - ( imgui.GetFontSize() * 24 / defaultFontSize ) end
     local plotYields = metrics[state.gathering].points.yields;
     local yieldsLabelMap =
     {
@@ -1017,7 +1013,7 @@ ashita.register_event('render', function()
                     state.settings.activeIndex = i;
                 end
                 imgui.PopStyleColor();
-                imgui.SameLine(0.0, state.window.spaceFooterBtn);
+                imgui.SameLine(0.0, state.window.spaceSettingsBtn);
             end
             imgui.EndMenuBar();
         end
@@ -1033,7 +1029,8 @@ ashita.register_event('render', function()
             [3] = function() renderSettingsSetColors() end,
             [4] = function() renderSettingsSetAlerts() end,
             [5] = function() renderSettingsReports() end,
-            [6] = function() renderSettingsAbout() end,
+            [6] = function() renderSettingsFeedback() end,
+            [7] = function() renderSettingsAbout() end,
         };
         imgui.EndGroup();
 
@@ -1052,9 +1049,8 @@ ashita.register_event('render', function()
             modalSaveAction();
         end
 
-        imgui.SameLine(0.0, 30);
-
-        -- TODO: come up with better solution..
+        --imgui.SameLine(0.0, 30);
+        --[[ TODO: come up with better solution..
         if state.settings.setPrices.priceModeChanged or state.settings.setPrices.priceEntryChanged then
             if table.count(metrics[state.settings.setPrices.gathering].yields) > 0 then
                 if imguiShowToolTip(string.format("Choose to update the current estimated value with any pricing changes.", string.upperfirst(state.gathering)), settings.general.showToolTips) then
@@ -1069,6 +1065,7 @@ ashita.register_event('render', function()
                 imgui.PopStyleColor();
             end
         end
+        --]]
 
         if state.initializing then
             imgui.CloseCurrentPopup();
@@ -1139,10 +1136,29 @@ end);
 function renderSettingsGeneral()
     if imgui.BeginChild("General", -1, state.window.heightSettingsContent, imgui.GetVarValue(uiVariables['var_WindowVisible'][1])) then
         imgui.SetWindowFontScale(state.window.scale);
-
+        imgui.PushItemWidth(state.window.widthWidgetDefault);
         imgui.Spacing();
 
         imgui.TextColored(1, 1, 0.54, 1, "Window");
+
+        local spaceSettingsDefaults = state.window.spaceSettingsDefaults;
+        if settings.general.showToolTips then spaceSettingsDefaults = spaceSettingsDefaults - ( imgui.GetFontSize() * 24 / defaultFontSize ) end
+        imgui.SameLine(0.0, spaceSettingsDefaults);
+        if imguiShowToolTip("Set all general settings to their defaults.", settings.general.showToolTips) then
+            imgui.SameLine(0.0, state.window.spaceToolTip);
+        end
+        imgui.PushStyleColor(ImGuiCol_Button, 0.21, 0.47, 0.59, 1); -- info
+        if imgui.Button("Defaults") then
+            settings.general = table.copy(defaultSettingsTemplate.general);
+            imgui.SetVarValue(uiVariables["var_WindowOpacity"][1], settings.general.opacity);
+            imgui.SetVarValue(uiVariables["var_TargetValue"][1], settings.general.targetValue);
+            imgui.SetVarValue(uiVariables["var_ShowToolTips"][1], settings.general.showToolTips);
+            imgui.SetVarValue(uiVariables["var_WindowScaleIndex"][1], settings.general.windowScaleIndex);
+            imgui.SetVarValue(uiVariables["var_ShowDetailedYields"][1], settings.general.showDetailedYields);
+            local r, g, b, a = colorToRGBA(settings.general.yieldDetailsColor);
+            imgui.SetVarValue(uiVariables["var_YieldDetailsColor"][1], r/255, g/255, b/255, a/255);
+        end
+        imgui.PopStyleColor();
 
         imguiFullSep();
 
@@ -1219,7 +1235,7 @@ function renderSettingsGeneral()
             settings.general.showToolTips = imgui.GetVarValue(uiVariables['var_ShowToolTips'][1]);
         end
         -- /Tooltips
-
+        imgui.PopItemWidth();
         imgui.EndChild()
     end
 end
@@ -1250,7 +1266,7 @@ function renderSettingsSetPrices()
 
             -- Price Mode
             local spaceStackMode = state.window.spaceStackModeRadio;
-            if settings.general.showToolTips then spaceStackMode = spaceStackMode - ( imgui.GetFontSize() * 25 / defaultFontSize ) end
+            if settings.general.showToolTips then spaceStackMode = spaceStackMode - ( imgui.GetFontSize() * 24 / defaultFontSize ) end
             imgui.SameLine(0.0, spaceStackMode);
             if imguiShowToolTip(string.format("Set %s yield prices based on the current market stack price. Otherwise, use the individual price.", string.upperfirst(state.settings.setPrices.gathering)), settings.general.showToolTips) then
                 imgui.SameLine(0.0, state.window.spaceToolTip);
@@ -1265,6 +1281,7 @@ function renderSettingsSetPrices()
             imgui.EndMenuBar();
         end
 
+
         local scaledHeightAddition = 0;
         if state.window.scale > 1.00 then scaledHeightAddition = 2 end;
         if imgui.BeginChild("Scrolling", imgui.GetContentRegionAvailWidth(), state.window.heightSettingsScroll + scaledHeightAddition) then
@@ -1277,10 +1294,13 @@ function renderSettingsSetPrices()
                 if imguiShowToolTip(yieldTip, settings.general.showToolTips) then
                     imgui.SameLine(0.0, state.window.spaceToolTip);
                 end
+                imgui.PushItemWidth(state.window.widthWidgetDefault);
                 if (imgui.InputInt(yield, uiVariables[string.format("var_%s_%s", state.settings.setPrices.gathering, string.clean(yield))][1])) then
                     settings.yields[state.settings.setPrices.gathering][yield].price = imgui.GetVarValue(uiVariables[string.format("var_%s_%s", state.settings.setPrices.gathering, string.clean(yield))][1]);
                 end
+                imgui.PopItemWidth();
             end
+
             imgui.EndChild()
         end
         imgui.EndChild()
@@ -1311,7 +1331,7 @@ function renderSettingsSetColors()
 
             -- Defaults
             local spaceColorDefaults = state.window.spaceColorDefaults;
-            if settings.general.showToolTips then spaceColorDefaults = spaceColorDefaults - ( imgui.GetFontSize() * 25 / defaultFontSize ) end
+            if settings.general.showToolTips then spaceColorDefaults = spaceColorDefaults - ( imgui.GetFontSize() * 24 / defaultFontSize ) end
             imgui.SameLine(0.0, spaceColorDefaults);
             if imguiShowToolTip(string.format("Set all %s yield colors to their defaults.", string.upperfirst(state.settings.setColors.gathering)), settings.general.showToolTips) then
                 imgui.SameLine(0.0, state.window.spaceToolTip);
@@ -1339,10 +1359,12 @@ function renderSettingsSetColors()
                 end
                 local r, g, b, a = colorToRGBA(settings.yields[state.settings.setColors.gathering][yield].color);
                 imgui.PushStyleColor(ImGuiCol_Text, r/255, g/255, b/255, a/255);
+                imgui.PushItemWidth(state.window.widthWidgetDefault);
                 if (imgui.ColorEdit4(yield, uiVariables[string.format("var_%s_%s_color", state.settings.setColors.gathering, string.clean(yield))][1])) then
                     settings.yields[state.settings.setColors.gathering][yield].color = colorTableToInt(imgui.GetVarValue(uiVariables[string.format("var_%s_%s_color", state.settings.setColors.gathering, string.clean(yield))][1]));
                 end
                 imgui.PopStyleColor();
+                imgui.PopItemWidth();
             end
             imgui.EndChild()
         end
@@ -1372,6 +1394,20 @@ function renderSettingsReports()
     if imgui.BeginChild("Set Alerts", -1, state.window.heightSettingsContent, true) then
         imgui.SetWindowFontScale(state.window.scale);
         imgui.Text("Manage generated yield reports.");
+        imgui.Spacing();
+        imgui.Text("Comming Soon..");
+        imgui.EndChild();
+    end
+end
+
+----------------------------------------------------------------------------------------------------
+-- func: renderSettingsFeedback
+-- desc: Renders the Reports section in settings.
+----------------------------------------------------------------------------------------------------
+function renderSettingsFeedback()
+    if imgui.BeginChild("Set Alerts", -1, state.window.heightSettingsContent, true) then
+        imgui.SetWindowFontScale(state.window.scale);
+        imgui.Text("Provide general feedback or report and issue.");
         imgui.Spacing();
         imgui.Text("Comming Soon..");
         imgui.EndChild();

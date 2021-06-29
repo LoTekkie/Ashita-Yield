@@ -1,12 +1,12 @@
 **Author:** [Sjshovan (LoTekkie)](https://github.com/LoTekkie)  
-**Version:** v0.9.0a
+**Version:** v0.9.0b
 
 
 # Yield
 
 > An Ashita v3 addon that allows you to track and edit gathering metrics within a simple GUI in Final Fantasy 11 Online.
 
-### *This Addon is currently in Alpha and is a WIP. I am aiming to have it completed by 07/01/2021.*
+### *This Addon is currently in Beta and is a WIP. I am aiming to have it completed by 07/01/2021.*
 
 ### Table of Contents
 
@@ -126,19 +126,43 @@ ___
 ___
 ### Change Log    
 
-**v0.9.0a** - 6/19/2021
-- Initial upload
+**v0.9.0b** - 6/28/2021  
+- Rewrote state management system.
+- Updated UI layout and colors.
+- Added new metrics.
+- Added harvesting data.
+- Added ability to resize window.
+- Added ability to change yield colors.
+- Added new settings options.
+- Added cyle options for yield and plot labels.
+- Added timer controls
+- Added tooltips
+- Added input for estimated value.
+- Added fishing and digging gathering types.
+- Added stack prices option.
+- Updated about section in settings.
+- Added help button.
+- Add ability to exit modals through clicks/escape button.
+
+**v0.9.0a** - 6/19/2021  
+- Initial upload.
+- 
 ___
 ### Known Issues
 
-- **Issue:** Window resizing causes the cursor position to change making GUI interaction difficult.
+- **Issue:** Main window resizing causes the cursor position to change making GUI interaction difficult.
+- **Issue:** Yield window size changes causes fonts to scale strangely.
 
 ___    
 ### TODOs
 
-- **TODO:** Add the rest of the gathering types
-- **TODO:** Add the sound alerts functionality
-- **TODO:** Cleanup code, re-write to improve performance/readability
+- **TODO:** Add the rest of the gathering types.
+- **TODO:** Add the custom sound alerts functionality.
+- **TODO:** Add reports generation feature for all gathering types.
+- **TODO:** Add/Update documentation.
+- **TODO:** Add feedback feature.
+- **TODO:** Add ability to update values on price changes.
+- **TODO:** Cleanup code, re-write to improve performance/readability.
 ___
 
 ### License

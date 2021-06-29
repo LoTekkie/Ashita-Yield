@@ -593,8 +593,7 @@ ashita.register_event('incoming_text', function(mode, message, modifiedmode, mod
         unable = message == string.format("You are unable to %s anything.", gatherData.action);
         broken = string.match(message, "Your (.*) breaks!");
         full = string.contains(message, "You cannot carry any more items.");
-        print(success);
-        print(successBreak);
+        
         if success then
             local of = string.match(success, "of (.*)");
             if of then success = of end;

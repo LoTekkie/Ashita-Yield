@@ -155,7 +155,7 @@ ___
 ___    
 ### TODOs
 
-- **TODO:** Add the rest of the gathering types.
+- **TODO:** Add the rest of the gathering types data.
 - **TODO:** Add the custom sound alerts functionality.
 - **TODO:** Add reports generation feature for all gathering types.
 - **TODO:** Add/Update documentation.

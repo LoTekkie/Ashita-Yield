@@ -61,7 +61,7 @@ local metrics  = {}
 local gatherTypes =
 {
     [1] = { name = "harvesting", short = "ha.", target = "Harvesting Point", tool = "sickle",        toolId = 1020, action = "harvest" },
-    [2] = { name = "excavating", short = "ex.", target = "Excavation Point", tool = "pickaxe",       toolId = 605,  action = "" },
+    [2] = { name = "excavating", short = "ex.", target = "Excavation Point", tool = "pickaxe",       toolId = 605,  action = "dig up" },
     [3] = { name = "logging",    short = "lo.", target = "Logging Point",    tool = "hatchet",       toolId = 1021, action = "cut off" },
     [4] = { name = "mining",     short = "mi.", target = "Mining Point",     tool = "pickaxe",       toolId = 605,  action = "dig up" },
     [5] = { name = "clamming",   short = "cl.", target = "Clamming Point",   tool = "clamming kit",  toolId = 511,  action = "" },
@@ -189,7 +189,7 @@ function loadUiVariables()
             imgui.SetVarValue(uiVariables[string.format("var_%s_%s_soundFile", gathering, string.clean(yield))][1], data.soundFile);
         end
         -- per gathering
-        settings.priceModes[gathering] = imgui.GetVarValue(uiVariables[string.format("var_%s_priceMode", gathering)][1]);
+        imgui.SetVarValue(uiVariables[string.format("var_%s_priceMode", gathering)][1], settings.priceModes[gathering]);
     end
 
     for gathering, data in pairs(metrics) do -- per metric
@@ -519,6 +519,25 @@ ashita.register_event('load', function()
         ashita.timer.adjust_timer("updatePlayerStorage", 1, 0, updatePlayerStorage)
         ashita.timer.start_timer("updatePlayerStorage")
     end
+    if ashita.timer.create_timer("inactivityCheck") then
+        ashita.timer.adjust_timer("inactivityCheck", 1, 0, function()
+            if state.timers[state.gathering] then
+                state.values.inactivitySeconds = state.values.inactivitySeconds + 1;
+                if state.values.inactivitySeconds == 300 then -- 5min
+                    for _, data in ipairs(gatherTypes) do
+                        state.timers[data.name] = false; -- shutdown timers
+                    end
+                    displayResponse("Yield: Timers halted due to inactivity.", "\31\140%s");
+                end
+            else
+                state.values.inactivitySeconds = 0;
+            end
+            if state.attempting then
+                state.values.inactivitySeconds = 0;
+            end
+        end)
+        ashita.timer.start_timer("inactivityCheck")
+    end
     -- Load ui variables from the settings file..
     loadUiVariables();
 end)
@@ -534,6 +553,7 @@ ashita.register_event('unload', function()
     -- Remove timers..
     ashita.timer.remove_timer("updatePlotPoints");
     ashita.timer.remove_timer("updatePlayerStorage");
+    ashita.timer.remove_timer("inactivityCheck");
 
     -- Cleanup the custom variables..
     for varName, data in pairs(uiVariables) do
@@ -570,6 +590,8 @@ ashita.register_event('command', function(command, ntype)
 
     elseif commandArgs[2] == 'help' or commandArgs[2] == 'h' then
         displayHelp(helpTable.commands);
+
+    elseif commandArgs[2] == "test" then
 
     else
         displayHelp(helpTable.commands);
@@ -620,13 +642,17 @@ ashita.register_event('incoming_text', function(mode, message, modifiedmode, mod
         unable = string.match(message, "^You are unable to .*");
         broken = string.match(message, "^Your (.*) breaks!");
         full = string.contains(message, "You cannot carry any more items.");
-        
         if success then
             local of = string.match(success, "of (.*)");
             if of then success = of end;
         end
         if success then
             success = string.lowerToTitle(success);
+            if not table.haskey(metrics[state.gathering].yields, success) then
+                displayResponse(string.format("Yield: ==ATTENTION== The %s yield name (%s) is unrecognized! Please report this to LoTekkie.", state.gathering, success), "\31\167%s");
+                state.attempting = false;
+                return false;
+            end
             val = getPrice(success);
             adjYield(success, 1);
             if successBreak then adjTotal("breaks", 1); end
@@ -636,11 +662,9 @@ ashita.register_event('incoming_text', function(mode, message, modifiedmode, mod
         elseif full then
             adjTotal("lost", 1);
         end
-
-        if successful or unable or broken or full then
+        if success or unable or broken or full then
             state.attempting = false;
         end
-
         curVal = metrics[state.gathering].estimatedValue;
         metrics[state.gathering].estimatedValue = curVal + val;
         imgui.SetVarValue(uiVariables[string.format("var_%s_estimatedValue", state.gathering)][1], metrics[state.gathering].estimatedValue);
@@ -662,6 +686,19 @@ ashita.register_event('outgoing_packet', function(id, size, packet, packet_modif
             end
         end
     --TODO: elseif Fi., Di.
+    end
+    return false;
+end);
+
+----------------------------------------------------------------------------------------------------
+-- func:
+-- desc: .
+----------------------------------------------------------------------------------------------------
+ashita.register_event('incoming_packet', function(id, size, packet, packet_modified, blocked)
+    if id == 0x00B then -- zoning out
+        for _, data in ipairs(gatherTypes) do
+            state.timers[data.name] = false; -- shutdown timers
+        end
     end
     return false;
 end);
@@ -724,7 +761,7 @@ ashita.register_event('render', function()
         offsetNameCursorY     = scaledFontSize * 5.0   / defaultFontSize
     }
 
-    -- MAIN_MENU
+    -- MAIN_MENU TODO: cleanup
     if imgui.BeginMenuBar() then
         for _, data in ipairs(gatherTypes) do
             if data.name == state.gathering then
@@ -733,6 +770,7 @@ ashita.register_event('render', function()
                     state.gathering = data.name;
                     state.settings.setPrices.gathering = state.gathering;
                     state.settings.setColors.gathering = state.gathering;
+                    state.values.inactivitySeconds = 0;
                 end
                 imgui.PopStyleColor();
             else
@@ -740,6 +778,7 @@ ashita.register_event('render', function()
                     state.gathering = data.name;
                     state.settings.setPrices.gathering = state.gathering;
                     state.settings.setColors.gathering = state.gathering;
+                    state.values.inactivitySeconds = 0;
                 end
             end
             if imgui.IsItemHovered() then
@@ -972,21 +1011,21 @@ ashita.register_event('render', function()
                 imgui.SameLine(0.0, state.window.spaceToolTip - 1.5);
             end
             imgui.BeginGroup();
-            imgui.SmallButton("+");
-            if imgui.IsItemClicked() then
-                adjYield(item, 1)
-                val = getPrice(item);
-                curVal = metrics[state.gathering].estimatedValue;
-                metrics[state.gathering].estimatedValue = curVal + val;
-                imgui.SetVarValue(uiVariables[string.format("var_%s_estimatedValue", state.gathering)][1], metrics[state.gathering].estimatedValue);
-            end
-            imgui.SameLine(0.0, 1.0);
             imgui.SmallButton("-");
             if imgui.IsItemClicked() then
                 adjYield(item, -1);
                 val = getPrice(item);
                 curVal = metrics[state.gathering].estimatedValue;
                 metrics[state.gathering].estimatedValue = curVal - val;
+                imgui.SetVarValue(uiVariables[string.format("var_%s_estimatedValue", state.gathering)][1], metrics[state.gathering].estimatedValue);
+            end
+            imgui.SameLine(0.0, 1.0);
+            imgui.SmallButton("+");
+            if imgui.IsItemClicked() then
+                adjYield(item, 1)
+                val = getPrice(item);
+                curVal = metrics[state.gathering].estimatedValue;
+                metrics[state.gathering].estimatedValue = curVal + val;
                 imgui.SetVarValue(uiVariables[string.format("var_%s_estimatedValue", state.gathering)][1], metrics[state.gathering].estimatedValue);
             end
             imgui.EndGroup();

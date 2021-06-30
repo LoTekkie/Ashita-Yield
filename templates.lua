@@ -48,6 +48,7 @@ stateTemplate =
         yieldListBtnsHovered = false,
         yieldListHovered     = false,
         yieldListClicked     = false,
+        inactivitySeconds    = 0,
     },
     actions =
     {
@@ -153,7 +154,9 @@ defaultSettingsTemplate =
             ["Petrified Log"]               = { id = 703,   short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
             ["Antlion Jaw"]                 = { id = 2503,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
             ["Cactus Stems"]                = { id = 1236,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Almonds"]                      = { id = 2503,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
             ["High-Quality Scorpion Shell"] = { id = 1473,  short = "HQ Scorpion Shell", singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+
         },
         logging =
         {
@@ -177,7 +180,7 @@ defaultSettingsTemplate =
             ["Yew Log"]           = { id = 696,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
             ["Faerie Apple"]      = { id = 4363, short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
             ["Pine Nuts"]         = { id = 2213, short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["Almond"]            = { id = 2503, short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Almonds"]            = { id = 2503, short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
             ["Date"]              = { id = 5566, short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
             ["Chestnut Log"]      = { id = 694,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
             ["Bloodwood Log"]     = { id = 729,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },

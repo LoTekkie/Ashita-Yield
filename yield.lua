@@ -648,7 +648,7 @@ ashita.register_event('incoming_text', function(mode, message, modifiedmode, mod
         end
         if success then
             success = string.lowerToTitle(success);
-            if not table.haskey(metrics[state.gathering].yields, success) then
+            if not table.haskey(settings.yields[state.gathering], success) then
                 displayResponse(string.format("Yield: ==ATTENTION== The %s yield name (%s) is unrecognized! Please report this to LoTekkie.", state.gathering, success), "\31\167%s");
                 state.attempting = false;
                 return false;
@@ -712,7 +712,7 @@ ashita.register_event('render', function()
     local scaledFontSize        = windowScale*defaultFontSize;
 
     local scaledHeightReduction = 0;
-    if windowScale == 1.15 then scaledHeightReduction = 34 elseif windowScale == 1.30 then scaledHeightReduction = 55 end;
+    if windowScale == 1.15 then scaledHeightReduction = 34 elseif windowScale == 1.30 then scaledHeightReduction = 54 end;
 
     imgui.PushStyleVar(ImGuiStyleVar_WindowRounding, 5.0);
     imgui.PushStyleVar(ImGuiStyleVar_Alpha, settings.general.opacity);
@@ -720,7 +720,7 @@ ashita.register_event('render', function()
     imgui.PushStyleColor(ImGuiCol_Border, 0.21, 0.47, 0.59, 0.5);
 
     -- MAIN
-    imgui.SetNextWindowSize(scaledFontSize*250/defaultFontSize, scaledFontSize*502/defaultFontSize - scaledHeightReduction, ImGuiSetCond_Always);
+    imgui.SetNextWindowSize(scaledFontSize*250/defaultFontSize, scaledFontSize*500/defaultFontSize - scaledHeightReduction, ImGuiSetCond_Always);
     if not imgui.Begin(string.format("%s v%s | Lotekkie & Narpt", _addon.name, _addon.version), imgui.GetVarValue(uiVariables['var_WindowVisible'][1]), imgui.bor(ImGuiWindowFlags_MenuBar, ImGuiWindowFlags_NoResize)) then
         imgui.End();
         return
@@ -731,7 +731,7 @@ ashita.register_event('render', function()
     state.window = -- Calculations based on scaled window sizes
     {
         scale                 = windowScale,
-        height                = scaledFontSize * 502.0 / defaultFontSize,
+        height                = scaledFontSize * 500.0 / defaultFontSize,
         width                 = scaledFontSize * 250.0 / defaultFontSize,
         padX                  = scaledFontSize * 5.0   / defaultFontSize,
         padY                  = scaledFontSize * 5.0   / defaultFontSize,

@@ -1,5 +1,5 @@
 --[[
-Copyright © 21, Sjshovan (LoTekkie)
+Copyright © 2021, Sjshovan (LoTekkie)
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without

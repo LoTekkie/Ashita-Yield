@@ -157,6 +157,19 @@ end
 -- func:
 -- desc: .
 ----------------------------------------------------------------------------------------------------
+function table.getIndexFromKey(t, key)
+    for _, k in ipairs(table.keys(t)) do
+        if key == k then
+            return _;
+        end
+    end
+    return nil
+end
+
+----------------------------------------------------------------------------------------------------
+-- func:
+-- desc: .
+----------------------------------------------------------------------------------------------------
 function string.camelToTitle(s)
     return string.gsub(string.upperfirst(s), "([A-Z][a-z]?)", " %1"):sub(2);
 end

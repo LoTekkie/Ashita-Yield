@@ -26,29 +26,30 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --]]
 
-_addon.name = 'Yield'
-_addon.description = 'Track and edit a variety of metrics related to gathering within a simple GUI.'
-_addon.author = 'Sjshovan (LoTekkie) Sjshovan@Gmail.com'
-_addon.version = '0.9.0b'
-_addon.commands = {'/yield', '/yld'}
+_addon.name = 'Yield';
+_addon.description = 'Track and edit a variety of metrics related to gathering within a simple GUI.';
+_addon.author = 'Sjshovan (LoTekkie) Sjshovan@Gmail.com';
+_addon.version = '0.9.1b';
+_addon.commands = {'/yield', '/yld'};
 
-require('templates')
-require('basePrices')
-require('helpers')
+require 'templates';
+require 'basePrices';
+require 'helpers';
 
-require 'common'
-require 'ffxi.enums'
-require 'timer'
+require 'common';
+require 'ffxi.enums';
+require 'timer';
+require 'd3d8';
 
 --[[ #TODOs & Notes
     - add sound alerts
     - update about
     - generate reports on zone change and reset (add option to opt out)
-    - adjust value when prices update?
     - add other gathering data
     - add documentation
     - update ver
     - cleanup code
+    - figure out a way to scale better, use table? can we align?
 --]]
 
 ----------------------------------------------------------------------------------------------------
@@ -56,7 +57,17 @@ require 'timer'
 ----------------------------------------------------------------------------------------------------
 local settings = table.copy(defaultSettingsTemplate);
 local state    = table.copy(stateTemplate);
-local metrics  = {}
+local metrics  = {};
+local textures = {};
+
+local ashitaResourceManager = AshitaCore:GetResourceManager();
+local ashitaChatManager     = AshitaCore:GetChatManager();
+local ashitaDataManager     = AshitaCore:GetDataManager();
+local ashitaParty           = ashitaDataManager:GetParty();
+local ashitaPlayer          = ashitaDataManager:GetPlayer();
+local ashitaInventory       = ashitaDataManager:GetInventory();
+local ashitaTarget          = ashitaDataManager:GetTarget();
+local ashitaEntity          = ashitaDataManager:GetEntity();
 
 local gatherTypes =
 {
@@ -64,7 +75,7 @@ local gatherTypes =
     [2] = { name = "excavating", short = "ex.", target = "Excavation Point", tool = "pickaxe",       toolId = 605,  action = "dig up" },
     [3] = { name = "logging",    short = "lo.", target = "Logging Point",    tool = "hatchet",       toolId = 1021, action = "cut off" },
     [4] = { name = "mining",     short = "mi.", target = "Mining Point",     tool = "pickaxe",       toolId = 605,  action = "dig up" },
-    [5] = { name = "clamming",   short = "cl.", target = "Clamming Point",   tool = "clamming kit",  toolId = 511,  action = "" },
+    [5] = { name = "clamming",   short = "cl.", target = "Clamming Point",   tool = "clamming kit",  toolId = 511,  action = "find" },
     [6] = { name = "fishing",    short = "fi.", target = nil,                tool = "bait",          toolId = 3,    action = "" },
     [7] = { name = "digging",    short = "di.", target = nil,                tool = "gysahl green",  toolId = 4545, action = "" }
 }
@@ -78,6 +89,35 @@ local settingsTypes =
     [5] = { name = "reports" },
     [6] = { name = "feedback" },
     [7] = { name = "about" }
+}
+
+local metricsTotalsToolTips =
+{
+    lost     = "Total number of yields lost.",
+    breaks   = "Total number of broken tools.",
+    yields   = "Total successful gathers.",
+    attempts = "Total attempts at gathering.",
+}
+
+local windowScales =
+{
+    [0] = 1.0;
+    [1] = 1.15;
+    [2] = 1.30;
+}
+
+local playerStorage = { available_pct = 100 };
+
+local containers =
+{
+    inventory = 0,
+    satchel   = 5,
+    sack      = 6,
+    case      = 7,
+    wardrobe  = 8,
+    wardrobe2 = 10,
+    wardrobe3 = 11,
+    wardrobe4 = 12
 }
 
 local helpTable =
@@ -108,48 +148,8 @@ local helpTable =
     }
 }
 
-local metricsTotalsToolTips =
-{
-    lost     = "Total number of yields lost.",
-    breaks   = "Total number of broken tools.",
-    yields   = "Total successful gathers.",
-    attempts = "Total attempts at gathering.",
-}
-
-local windowScales =
-{
-    [0] = 1.0;
-    [1] = 1.15;
-    [2] = 1.30;
-}
-
-local playerStorage =
-{
-    available_pct = 100
-};
-
-local ashitaResourceManager      = AshitaCore:GetResourceManager();
-local ashitaChatManager          = AshitaCore:GetChatManager();
-local ashitaDataManager          = AshitaCore:GetDataManager();
-local ashitaParty                = ashitaDataManager:GetParty();
-local ashitaPlayer               = ashitaDataManager:GetPlayer();
-local ashitaInventory            = ashitaDataManager:GetInventory();
-local ashitaTarget               = ashitaDataManager:GetTarget();
-local ashitaEntity               = ashitaDataManager:GetEntity();
-
 local modalConfirmPromptTemplate = "Are you sure you want to %s?";
 local defaultFontSize            = imgui.GetFontSize();
-local containers =
-{
-    inventory = 0,
-    satchel   = 5,
-    sack      = 6,
-    case      = 7,
-    wardrobe  = 8,
-    wardrobe2 = 10,
-    wardrobe3 = 11,
-    wardrobe4 = 12
-}
 
 ----------------------------------------------------------------------------------------------------
 -- UI Variables
@@ -163,6 +163,7 @@ local uiVariables =
     ["var_WindowScaleIndex"]      = { nil, ImGuiVar_UINT32, 0 },
     ["var_ShowDetailedYields"]    = { nil, ImGuiVar_BOOLCPP, true },
     ["var_YieldDetailsColor"]     = { nil, ImGuiVar_FLOATARRAY, 4 };
+    ["var_UseImageButtons"]       = { nil, ImGuiVar_BOOLCPP, true },
     -- Internal
     ['var_WindowVisible']         = { nil, ImGuiVar_BOOLCPP, true },
 }
@@ -178,15 +179,17 @@ function loadUiVariables()
     imgui.SetVarValue(uiVariables["var_ShowToolTips"][1], settings.general.showToolTips);
     imgui.SetVarValue(uiVariables["var_WindowScaleIndex"][1], settings.general.windowScaleIndex);
     imgui.SetVarValue(uiVariables["var_ShowDetailedYields"][1], settings.general.showDetailedYields);
+    imgui.SetVarValue(uiVariables["var_UseImageButtons"][1], settings.general.useImageButtons);
+
     local r, g, b, a = colorToRGBA(settings.general.yieldDetailsColor);
     imgui.SetVarValue(uiVariables["var_YieldDetailsColor"][1], r/255, g/255, b/255, a/255);
 
     for gathering, yields in pairs(settings.yields) do -- per yield
         for yield, data in pairs(yields) do
-            imgui.SetVarValue(uiVariables[string.format("var_%s_%s_prices", gathering, string.clean(yield))][1], data.singlePrice, data.stackPrice);
+            imgui.SetVarValue(uiVariables[string.format("var_%s_%s_prices", gathering, yield)][1], data.singlePrice, data.stackPrice);
             local r, g, b, a = colorToRGBA(data.color);
-            imgui.SetVarValue(uiVariables[string.format("var_%s_%s_color", gathering, string.clean(yield))][1], r/255, g/255, b/255, a/255);
-            imgui.SetVarValue(uiVariables[string.format("var_%s_%s_soundFile", gathering, string.clean(yield))][1], data.soundFile);
+            imgui.SetVarValue(uiVariables[string.format("var_%s_%s_color", gathering, yield)][1], r/255, g/255, b/255, a/255);
+            imgui.SetVarValue(uiVariables[string.format("var_%s_%s_soundFile", gathering, yield)][1], data.soundFile);
         end
         -- per gathering
         imgui.SetVarValue(uiVariables[string.format("var_%s_priceMode", gathering)][1], settings.priceModes[gathering]);
@@ -243,6 +246,7 @@ function updatePlayerStorage()
     end
     storage["available"], storage["available_pct"] = getAvailableStorageFromContainers({0});
     playerStorage = storage;
+    --print(state.attempting);
 end
 
 ----------------------------------------------------------------------------------------------------
@@ -297,8 +301,8 @@ end
 -- func:
 -- desc: .
 ----------------------------------------------------------------------------------------------------
-function pushSettingsBtnColor(index)
-    if state.settings.activeIndex == index then
+function pushActiveBtnColor(cond)
+    if cond then
         imgui.PushStyleColor(ImGuiCol_Button, 0.21, 0.47, 0.59, 1); -- info
     else
         imgui.PushStyleColor(ImGuiCol_Button, 0.25, 0.69, 1.0, 0.1); -- secondary
@@ -416,6 +420,17 @@ function table.sortKeysByTotalValue(t, desc)
 end
 
 ----------------------------------------------------------------------------------------------------
+-- func:
+-- desc: .
+----------------------------------------------------------------------------------------------------
+function updateAllStates(newState)
+    state.gathering = newState;
+    state.settings.setPrices.gathering = newState;
+    state.settings.setColors.gathering = newState;
+    state.settings.setAlerts.gathering = newState;
+end
+
+----------------------------------------------------------------------------------------------------
 -- func: saveSettings
 -- desc: Saves the Yield settings file.
 ----------------------------------------------------------------------------------------------------
@@ -426,15 +441,16 @@ function saveSettings()
     settings.general.showToolTips      = imgui.GetVarValue(uiVariables["var_ShowToolTips"][1]);
     settings.general.windowScaleIndex  = imgui.GetVarValue(uiVariables["var_WindowScaleIndex"][1]);
     settings.general.yieldDetailsColor = colorTableToInt(imgui.GetVarValue(uiVariables["var_YieldDetailsColor"][1]));
+    settings.general.useImageButtons   = imgui.GetVarValue(uiVariables["var_UseImageButtons"][1]);
 
     for gathering, yields in pairs(settings.yields) do
         for yield, data in pairs(yields) do
             local yieldSettings = settings.yields[gathering][yield];
-            local prices = imgui.GetVarValue(uiVariables[string.format("var_%s_%s_prices", gathering, string.clean(yield))][1]);
+            local prices = imgui.GetVarValue(uiVariables[string.format("var_%s_%s_prices", gathering, yield)][1]);
             yieldSettings.singlePrice = prices[1];
             yieldSettings.stackPrice  = prices[2];
-            yieldSettings.color       = colorTableToInt(imgui.GetVarValue(uiVariables[string.format("var_%s_%s_color", gathering, string.clean(yield))][1]));
-            yieldSettings.soundFile   = imgui.GetVarValue(uiVariables[string.format("var_%s_%s_soundFile", gathering, string.clean(yield))][1]);
+            yieldSettings.color       = colorTableToInt(imgui.GetVarValue(uiVariables[string.format("var_%s_%s_color", gathering, yield)][1]));
+            yieldSettings.soundFile   = imgui.GetVarValue(uiVariables[string.format("var_%s_%s_soundFile", gathering, yield)][1]);
         end
         settings.priceModes[gathering] = imgui.GetVarValue(uiVariables[string.format("var_%s_priceMode", gathering)][1]);
     end
@@ -480,19 +496,26 @@ ashita.register_event('load', function()
         state.timers[data.name] = false;
         -- Add estimated value ui variables...
         uiVariables[string.format("var_%s_estimatedValue", data.name)] = { nil, ImGuiVar_UINT32, 0 }
+        -- Add textures..
+        local texturePath = string.format('images\\%s.png', data.name)
+        local hres, texture = ashita.d3dx.CreateTextureFromFileA(_addon.path .. texturePath);
+        if texture == nil then
+            state.values.btnTextureFailure = true;
+            displayResponse(string.format("Yield: Failed to load texture (%s). Buttons will now default to text display.", texturePath), "\31\167%s");
+            imgui.SetVarValue(uiVariables["var_UseImageButtons"][1], false);
+        end
+        textures[data.name] = texture;
     end
 
     -- Update saved gathering state..
-    state.gathering = settings.state.gathering;
-    state.settings.setPrices.gathering = state.gathering;
-    state.settings.setColors.gathering = state.gathering;
+    updateAllStates(settings.state.gathering);
 
     -- Add price ui variables from settings..
     for gathering, yields in pairs(settings.yields) do
         for yield, data in pairs(yields) do -- per yield
-            uiVariables[string.format("var_%s_%s_prices", gathering, string.clean(yield))] = { nil, ImGuiVar_INT32ARRAY, 2 };
-            uiVariables[string.format("var_%s_%s_color", gathering, string.clean(yield))] = { nil, ImGuiVar_FLOATARRAY, 4 };
-            uiVariables[string.format("var_%s_%s_soundFile", gathering, string.clean(yield))] = { nil, ImGuiVar_CDSTRING, 64 };
+            uiVariables[string.format("var_%s_%s_prices", gathering, yield)] = { nil, ImGuiVar_INT32ARRAY, 2 };
+            uiVariables[string.format("var_%s_%s_color", gathering, yield)] = { nil, ImGuiVar_FLOATARRAY, 4 };
+            uiVariables[string.format("var_%s_%s_soundFile", gathering, yield)] = { nil, ImGuiVar_CDSTRING, 64 };
         end
         -- per gathering
         uiVariables[string.format("var_%s_priceMode", gathering)] = { nil, ImGuiVar_UINT32, 0 };
@@ -538,6 +561,7 @@ ashita.register_event('load', function()
         end)
         ashita.timer.start_timer("inactivityCheck")
     end
+
     -- Load ui variables from the settings file..
     loadUiVariables();
 end)
@@ -592,7 +616,9 @@ ashita.register_event('command', function(command, ntype)
         displayHelp(helpTable.commands);
 
     elseif commandArgs[2] == "test" then
-
+        settings.general.showToolTips = not settings.general.showToolTips;
+    elseif commandArgs[2] == "test2" then
+        settings.general.windowScaleIndex = cycleIndex(settings.general.windowScaleIndex, 0, 2, 1);
     else
         displayHelp(helpTable.commands);
     end
@@ -611,20 +637,21 @@ end)
 -- desc: Event called when the addon is asked to handle an incoming chat line.
 ---------------------------------------------------------------------------------------------------
 ashita.register_event('incoming_text', function(mode, message, modifiedmode, modifiedmessage, blocked)
+    -- Ensure we care..
+    if not state.attempting then return false; end
 
-    -- Ensure proper chat modes.
-    if (mode ~= 919 or blocked or message:startswith(string.char(0x1E, 0x01))) then return false; end
+    -- Ensure proper chat modes..
+    if not table.hasvalue({919, 654}, mode) then return false; end
+    if (blocked or message:startswith(string.char(0x1E, 0x01))) then return false; end
 
     -- Remove colors form message.
     message = string.strip_colors(message);
 
     -- Ensure correct state.
-    state.gathering = state.attemptType
+    updateAllStates(state.attemptType);
 
     -- Check the attempt.
     if state.attempting then
-        adjTotal("attempts",  1);
-
         if not state.timers[state.gathering] then
             state.timers[state.gathering] = true
         end
@@ -637,11 +664,24 @@ ashita.register_event('incoming_text', function(mode, message, modifiedmode, mod
         local full = false;
 
         local gatherData = getGatherTypeData(state.gathering);
-        successBreak = string.match(message, string.format("^You %s a[n]? (.*), but your %s .*", gatherData.action, gatherData.tool));
-        success = string.match(message, string.format("^You successfully %s a[n]? (.*)!", gatherData.action)) or successBreak
-        unable = string.match(message, "^You are unable to .*");
-        broken = string.match(message, "^Your (.*) breaks!");
-        full = string.contains(message, "You cannot carry any more items.");
+        switch(gatherData.name) : caseof
+        {
+            ["clamming"] = function ()
+                successBreak = string.match(message, string.format("^You %s a[n]? (.*) and toss it into your bucket...", gatherData.action));
+                success = string.match(message, string.format("^You %s a[n]? (.*) and toss it into your bucket.", gatherData.action)) or successBreak
+                unable = string.match(message, "^You cannot collect .*") or string.contains(message, "someone has been digging here.");
+                broken = false;
+            end,
+            ["default"] = function ()
+                successBreak = string.match(message, string.format("^You %s a[n]? (.*), but your %s .*", gatherData.action, gatherData.tool));
+                success = string.match(message, string.format("^You successfully %s a[n]? (.*)!", gatherData.action)) or successBreak
+                unable = string.match(message, "^You are unable to .*");
+                broken = string.match(message, "^Your (.*) breaks!");
+            end
+        }
+
+        full = string.contains(message, "You cannot carry any more");
+
         if success then
             local of = string.match(success, "of (.*)");
             if of then success = of end;
@@ -649,7 +689,7 @@ ashita.register_event('incoming_text', function(mode, message, modifiedmode, mod
         if success then
             success = string.lowerToTitle(success);
             if not table.haskey(settings.yields[state.gathering], success) then
-                displayResponse(string.format("Yield: ==ATTENTION== The %s yield name (%s) is unrecognized! Please report this to LoTekkie.", state.gathering, success), "\31\167%s");
+                displayResponse(string.format("Yield: The %s yield name (%s) is unrecognized! Please report this to LoTekkie.", state.gathering, success), "\31\167%s");
                 state.attempting = false;
                 return false;
             end
@@ -662,7 +702,9 @@ ashita.register_event('incoming_text', function(mode, message, modifiedmode, mod
         elseif full then
             adjTotal("lost", 1);
         end
+
         if success or unable or broken or full then
+            adjTotal("attempts", 1);
             state.attempting = false;
         end
         curVal = metrics[state.gathering].estimatedValue;
@@ -677,7 +719,8 @@ end);
 -- desc: .
 ----------------------------------------------------------------------------------------------------
 ashita.register_event('outgoing_packet', function(id, size, packet, packet_modified, blocked)
-    if id == 0x36 then -- Ha., Ex., Lo., Mi., Cl.
+
+    if id == 0x36 then -- helm
         for gathering, data in pairs(gatherTypes) do
             if data.target == ashitaTarget:GetTargetName() then
                 state.attempting = true;
@@ -685,7 +728,12 @@ ashita.register_event('outgoing_packet', function(id, size, packet, packet_modif
                 state.gathering = data.name;
             end
         end
-    --TODO: elseif Fi., Di.
+    elseif id == 0x1A then -- clam
+        if ashitaTarget:GetTargetName() == "Clamming Point" then
+            state.attempting = true;
+            state.attemptType = "clamming";
+            state.gathering = "clamming";
+        end
     end
     return false;
 end);
@@ -696,6 +744,7 @@ end);
 ----------------------------------------------------------------------------------------------------
 ashita.register_event('incoming_packet', function(id, size, packet, packet_modified, blocked)
     if id == 0x00B then -- zoning out
+        state.attempting = false;
         for _, data in ipairs(gatherTypes) do
             state.timers[data.name] = false; -- shutdown timers
         end
@@ -736,6 +785,7 @@ ashita.register_event('render', function()
         padX                  = scaledFontSize * 5.0   / defaultFontSize,
         padY                  = scaledFontSize * 5.0   / defaultFontSize,
         spaceGatherBtn        = scaledFontSize * 6.5   / defaultFontSize * windowScale + (windowScale - 1.0) * 2,
+        spaceGatherImg        = scaledFontSize * 6.3   / defaultFontSize * windowScale + (windowScale - 1.0) * 4,
         heightHeaderMain      = scaledFontSize * 15.0  / defaultFontSize,
         heightPlot            = scaledFontSize * 25.0  / defaultFontSize,
         heightYields          = scaledFontSize * 130.0 / defaultFontSize,
@@ -745,42 +795,46 @@ ashita.register_event('render', function()
         heightSettings        = scaledFontSize * 450.0 / defaultFontSize,
         heightSettingsContent = scaledFontSize * 367.0 / defaultFontSize,
         heightSettingsScroll  = scaledFontSize * 343.0 / defaultFontSize,
-        spaceStackModeRadio   = scaledFontSize * 115.0 / defaultFontSize,
+        spacePriceModeRadio   = scaledFontSize * 26.0  / defaultFontSize * windowScale + (windowScale - 1.0) * 2,
+        spacePriceDefaults    = scaledFontSize * 35.0  / defaultFontSize * windowScale + (windowScale - 1.0) * 2,
         spaceEstimatedValue   = scaledFontSize * 12.0  / defaultFontSize * windowScale + (windowScale - 1.0) * 2,
         widthModalConfirm     = scaledFontSize * 350.0 / defaultFontSize,
         heightModalConfirm    = scaledFontSize * 102.0 / defaultFontSize,
-        spaceColorDefaults    = scaledFontSize * 179.0 / defaultFontSize,
+        spaceColorDefaults    = scaledFontSize * 177.0 / defaultFontSize,
         widthWidgetDefault    = scaledFontSize * 275.0 / defaultFontSize,
         spaceSettingsBtn      = scaledFontSize * 6.0   / defaultFontSize * windowScale + (windowScale - 1.0) * 2,
         spaceSettingsDefaults = scaledFontSize * 377.0 / defaultFontSize,
         widthWidgetValue      = scaledFontSize * 191.0 / defaultFontSize,
-        offsetPriceColumns1   = scaledFontSize * 150.0 / defaultFontSize,
+        offsetPriceColumns1   = scaledFontSize * 140.0 / defaultFontSize,
         offsetPriceColumns2   = scaledFontSize * 170.0 / defaultFontSize,
         heightPriceColumns    = scaledFontSize * 25.0  / defaultFontSize,
         offsetPriceCursorY    = scaledFontSize * 2.0   / defaultFontSize,
-        offsetNameCursorY     = scaledFontSize * 5.0   / defaultFontSize
+        offsetNameCursorY     = scaledFontSize * 5.0   / defaultFontSize,
+        sizeGatherTexture     = scaledFontSize * 20.0  / defaultFontSize,
+        spaceBtnRecalculate   = scaledFontSize * 55.0  / defaultFontSize
     }
 
     -- MAIN_MENU TODO: cleanup
     if imgui.BeginMenuBar() then
+        local btnAction = function(data)
+            updateAllStates(data.name);
+            state.values.inactivitySeconds = 0;
+        end
         for _, data in ipairs(gatherTypes) do
-            if data.name == state.gathering then
-                imgui.PushStyleColor(ImGuiCol_Button, 0.21, 0.47, 0.59, 1); -- info
+            if state.values.btnTextureFailure or not settings.general.useImageButtons then
+                pushActiveBtnColor(data.name == state.gathering);
                 if imgui.SmallButton(string.upperfirst(data.short)) then
-                    state.gathering = data.name;
-                    state.settings.setPrices.gathering = state.gathering;
-                    state.settings.setColors.gathering = state.gathering;
-                    state.values.inactivitySeconds = 0;
+                    btnAction(data);
                 end
-                imgui.PopStyleColor();
             else
-                if imgui.SmallButton(string.upperfirst(data.short)) then
-                    state.gathering = data.name;
-                    state.settings.setPrices.gathering = state.gathering;
-                    state.settings.setColors.gathering = state.gathering;
-                    state.values.inactivitySeconds = 0;
+                local texture = textures[data.name];
+                pushActiveBtnColor(data.name == state.gathering);
+                local textureSize = state.window.sizeGatherTexture;
+                if imgui.ImageButton(texture:Get(), textureSize, textureSize) then
+                    btnAction(data);
                 end
             end
+            imgui.PopStyleColor();
             if imgui.IsItemHovered() then
                 imgui.SetTooltip(string.upperfirst(data.name));
             end
@@ -1069,8 +1123,12 @@ ashita.register_event('render', function()
             end
         end
         if imgui.IsItemHovered() then
-            if not state.values.yieldListClicked then
-                state.values.yieldListHovered = true;
+            if table.count(metrics[state.gathering].yields) == 0 then
+                imgui.SetTooltip(string.format("Sort Type: %s", yieldsSortMap[state.values.yieldSortIndex][2]));
+            else
+                if not state.values.yieldListClicked then
+                    state.values.yieldListHovered = true;
+                end
             end
         else
             state.values.yieldListHovered = false;
@@ -1135,8 +1193,7 @@ ashita.register_event('render', function()
     if windowScale == 1.15 then scaledHeightReduction = 7 elseif windowScale == 1.30 then scaledHeightReduction = 12 end;
     local modalSaveAction = function()
         imgui.CloseCurrentPopup();
-        state.settings.setPrices.gathering = state.gathering;
-        state.settings.setColors.gathering = state.gathering;
+        updateAllStates(state.gathering);
         saveSettings();
     end
     imgui.SetNextWindowSize(state.window.widthSettings, state.window.heightSettings - scaledHeightReduction, ImGuiSetCond_Always);
@@ -1147,7 +1204,7 @@ ashita.register_event('render', function()
         if imgui.BeginMenuBar() then
             for i, data in ipairs(settingsTypes) do
                 local btnName = string.camelToTitle(data.name);
-                pushSettingsBtnColor(i);
+                pushActiveBtnColor(state.settings.activeIndex == i);
                 if imgui.Button(btnName) then
                     state.settings.activeIndex = i;
                 end
@@ -1186,6 +1243,28 @@ ashita.register_event('render', function()
         end
         if (not imgui.IsMouseHoveringAnyWindow() and imgui.IsMouseClicked()) then
             modalSaveAction();
+        end
+
+        -- Recalculate
+        local yieldsExist = table.count(metrics[state.settings.setPrices.gathering].yields) > 0;
+        if state.settings.activeIndex == 2 and yieldsExist then -- if we are setting prices
+            local spaceBtnRecalculate = state.window.spaceBtnRecalculate;
+            if settings.general.showToolTips then spaceBtnRecalculate = spaceBtnRecalculate - ( imgui.GetFontSize() * 24 / defaultFontSize ) end
+            if state.window.scale == 1.15 then spaceBtnRecalculate = spaceBtnRecalculate + 3 end;
+            if state.window.scale == 1.30 then spaceBtnRecalculate = spaceBtnRecalculate + 6 end;
+            imgui.SameLine(0.0, spaceBtnRecalculate);
+            if imguiShowToolTip("Recalculate the estimated value with your current price settings.", settings.general.showToolTips) then
+                imgui.SameLine(0.0, state.window.spaceToolTip);
+            end
+            if imgui.Button("Recalculate Value") then
+                updateAllStates(state.settings.setPrices.gathering);
+                metrics[state.gathering].estimatedValue = 0;
+                for yield, count in pairs(metrics[state.gathering].yields) do
+                    local price = getPrice(yield);
+                    metrics[state.gathering].estimatedValue = metrics[state.gathering].estimatedValue + (price * count);
+                end
+                imgui.SetVarValue(uiVariables[string.format("var_%s_estimatedValue", state.gathering)][1], metrics[state.gathering].estimatedValue);
+            end
         end
 
         if state.initializing then
@@ -1256,7 +1335,6 @@ end);
 ----------------------------------------------------------------------------------------------------
 function renderSettingsGeneral()
     if imgui.BeginChild("General", -1, state.window.heightSettingsContent, imgui.GetVarValue(uiVariables['var_WindowVisible'][1])) then
-
         imgui.SetWindowFontScale(state.window.scale);
         imgui.PushItemWidth(state.window.widthWidgetDefault);
 
@@ -1269,7 +1347,8 @@ function renderSettingsGeneral()
         if imguiShowToolTip("Set all general settings to their defaults.", settings.general.showToolTips) then
             imgui.SameLine(0.0, state.window.spaceToolTip);
         end
-        imgui.PushStyleColor(ImGuiCol_Button, 0.21, 0.47, 0.59, 1); -- info
+
+        --imgui.PushStyleColor(ImGuiCol_Button, 0.21, 0.47, 0.59, 1); -- info
         if imgui.Button("Defaults") then
             settings.general = table.copy(defaultSettingsTemplate.general);
             imgui.SetVarValue(uiVariables["var_WindowOpacity"][1], settings.general.opacity);
@@ -1277,10 +1356,12 @@ function renderSettingsGeneral()
             imgui.SetVarValue(uiVariables["var_ShowToolTips"][1], settings.general.showToolTips);
             imgui.SetVarValue(uiVariables["var_WindowScaleIndex"][1], settings.general.windowScaleIndex);
             imgui.SetVarValue(uiVariables["var_ShowDetailedYields"][1], settings.general.showDetailedYields);
+            imgui.SetVarValue(uiVariables["var_UseImageButtons"][1], settings.general.useImageButtons);
+
             local r, g, b, a = colorToRGBA(settings.general.yieldDetailsColor);
             imgui.SetVarValue(uiVariables["var_YieldDetailsColor"][1], r/255, g/255, b/255, a/255);
         end
-        imgui.PopStyleColor();
+        --imgui.PopStyleColor();
 
         imguiHalfSep(true);
 
@@ -1354,6 +1435,16 @@ function renderSettingsGeneral()
 
         imguiFullSep();
 
+        -- Image Buttons
+        imgui.AlignFirstTextHeightToWidgets();
+        if imguiShowToolTip("Toggles the display of images used for all gathering buttons. If off, text will be used instead.", settings.general.showToolTips) then
+            imgui.SameLine(0.0, state.window.spaceToolTip);
+        end
+        if (imgui.Checkbox('Use Image Buttons', uiVariables["var_UseImageButtons"][1])) then
+            settings.general.useImageButtons = imgui.GetVarValue(uiVariables["var_UseImageButtons"][1]);
+        end
+        -- /Image Buttons
+
         -- Tooltips
         imgui.AlignFirstTextHeightToWidgets();
         if imguiShowToolTip("Toggles the display of (?)s and their tooltips.", settings.general.showToolTips) then
@@ -1374,39 +1465,79 @@ end
 -- desc: Renders the Set Prices settings.
 ----------------------------------------------------------------------------------------------------
 function renderSettingsSetPrices()
+
     local currentPrices = state.settings.setPrices.gathering
+
     if imgui.BeginChild("Set Prices", -1, state.window.heightSettingsContent, imgui.GetVarValue(uiVariables['var_WindowVisible'][1]), imgui.bor(ImGuiWindowFlags_MenuBar, ImGuiWindowFlags_NoResize)) then
         imgui.SetWindowFontScale(state.window.scale);
+
         if imgui.BeginMenuBar() then
+            local btnAction = function(data)
+                state.settings.setPrices.gathering = data.name;
+            end
             for _, data in ipairs(gatherTypes) do
-                if data.name == state.settings.setPrices.gathering then
-                    imgui.PushStyleColor(ImGuiCol_Button, 0.21, 0.47, 0.59, 1); -- info
-                    if imgui.SmallButton(string.upperfirst(data.short)) then state.settings.setPrices.gathering = data.name end
-                    imgui.PopStyleColor();
+                if state.values.btnTextureFailure or not settings.general.useImageButtons then
+                    pushActiveBtnColor(data.name == state.settings.setPrices.gathering);
+                    if imgui.SmallButton(string.upperfirst(data.short)) then
+                        btnAction(data);
+                    end
                 else
-                    if imgui.SmallButton(string.upperfirst(data.short)) then state.settings.setPrices.gathering = data.name end
+                    local texture = textures[data.name];
+                    pushActiveBtnColor(data.name == state.settings.setPrices.gathering);
+                    local textureSize = state.window.sizeGatherTexture;
+                    if imgui.ImageButton(texture:Get(), textureSize, textureSize) then
+                        btnAction(data);
+                    end
                 end
+                imgui.PopStyleColor();
                 if imgui.IsItemHovered() then
                     imgui.SetTooltip(string.upperfirst(data.name));
                 end
+
                 imgui.SameLine(0.0, state.window.spaceGatherBtn);
             end
 
-            -- Price Mode
-            local spaceStackMode = state.window.spaceStackModeRadio;
-            if settings.general.showToolTips then spaceStackMode = spaceStackMode - ( imgui.GetFontSize() * 24 / defaultFontSize ) end
-            imgui.SameLine(0.0, spaceStackMode);
+            -- NPC prices
+            local spacePriceMode = state.window.spacePriceModeRadio;
+            if settings.general.showToolTips then spacePriceMode = 6.0 end
+            imgui.SameLine(0.0, spacePriceMode);
             imgui.AlignFirstTextHeightToWidgets();
             if imguiShowToolTip(string.format("Use NPC base prices (Yield will automatically fetch the NPC single item prices as you gather). This option will override your set prices without modifying them.", string.upperfirst(state.settings.setPrices.gathering)), settings.general.showToolTips) then
-                imgui.SameLine(0.0, state.window.spaceToolTip);
+                imgui.SameLine(0.0, 0.0);
             end
             if imgui.RadioButton("Use NPC prices", uiVariables[string.format("var_%s_priceMode", state.settings.setPrices.gathering)][1], 2) then
                 settings.priceModes[state.settings.setPrices.gathering] = imgui.GetVarValue(uiVariables[string.format("var_%s_priceMode", state.settings.setPrices.gathering)][1]);
             end
-            -- /Price Mode
+            -- /NPC prices
+
+            -- Clear prices
+
+            local spaceBtnClear = 32;
+            if settings.general.showToolTips then
+                spaceBtnClear = 8.0
+                if state.window.scale == 1.15 then spaceBtnClear = 13.0 end;
+                if state.window.scale == 1.30 then spaceBtnClear = 16.0 end;
+            else
+                if state.window.scale > 1.0 then spaceBtnClear = 35.0 end;
+            end
+
+            imgui.SameLine(0.0, spaceBtnClear);
+            imgui.AlignFirstTextHeightToWidgets();
+            if imguiShowToolTip(string.format("Set all %s prices to their default values (0).", string.upperfirst(state.settings.setPrices.gathering)), settings.general.showToolTips) then
+                imgui.SameLine(0.0, state.window.spaceToolTip);
+            end
+            if imgui.SmallButton("Defaults", uiVariables[string.format("var_%s_priceMode", state.settings.setPrices.gathering)][1], 2) then
+                for yield, data in pairs(settings.yields[state.settings.setPrices.gathering], true) do
+                    settings.yields[state.settings.setPrices.gathering][yield].singlePrice = 0;
+                    settings.yields[state.settings.setPrices.gathering][yield].stackPrice = 0;
+                    imgui.SetVarValue(uiVariables[string.format("var_%s_%s_prices", state.settings.setPrices.gathering, yield)][1], 0, 0);
+                end
+            end
+            -- Clear prices
             imgui.EndMenuBar();
         end
 
+        -- Columns
         if imgui.BeginChild("Column Names", -1, state.window.heightPriceColumns) then
             imgui.SetWindowFontScale(state.window.scale);
             imgui.Columns(3, "Price Mode Columns", false);
@@ -1417,9 +1548,9 @@ function renderSettingsSetPrices()
             imgui.AlignFirstTextHeightToWidgets();
             local cursorOffsetY = state.window.offsetPriceCursorY;
             imgui.SetCursorPosY(imgui.GetCursorPosY() + cursorOffsetY);
-            imgui.SetCursorPosX(imgui.GetCursorPosX() + 10.0);
+            --imgui.SetCursorPosX(imgui.GetCursorPosX() + 10.0);
             if imguiShowToolTip("Use the set single-item prices for calculations.", settings.general.showToolTips) then
-                imgui.SameLine(0.0, state.window.spaceToolTip/2);
+                imgui.SameLine(0.0, 0.0);
             end
             if imgui.RadioButton("Single Prices", uiVariables[string.format("var_%s_priceMode", state.settings.setPrices.gathering)][1], 1) then
                 settings.priceModes[state.settings.setPrices.gathering] = imgui.GetVarValue(uiVariables[string.format("var_%s_priceMode", state.settings.setPrices.gathering)][1]);
@@ -1429,7 +1560,7 @@ function renderSettingsSetPrices()
             imgui.SetCursorPosX(imgui.GetCursorPosX() - 10.0);
             imgui.AlignFirstTextHeightToWidgets();
             if imguiShowToolTip("Use the set stack prices for calculations (Yield will do the math for you).", settings.general.showToolTips) then
-                imgui.SameLine(0.0, state.window.spaceToolTip/2);
+                imgui.SameLine(0.0, 0.0);
             end
             if imgui.RadioButton("Stack Prices", uiVariables[string.format("var_%s_priceMode", state.settings.setPrices.gathering)][1], 0) then
                 settings.priceModes[state.settings.setPrices.gathering] = imgui.GetVarValue(uiVariables[string.format("var_%s_priceMode", state.settings.setPrices.gathering)][1]);
@@ -1441,6 +1572,8 @@ function renderSettingsSetPrices()
             imgui.EndChild();
         end
 
+        -- /Columns
+        imgui.Separator();
         if imgui.BeginChild("Scrolling", -1, -1) then
             imgui.SetWindowFontScale(state.window.scale);
             for data, yield in pairs(table.sortKeysByAlphabet(settings.yields[state.settings.setPrices.gathering], true)) do
@@ -1451,8 +1584,8 @@ function renderSettingsSetPrices()
                 imgui.PushItemWidth(state.window.widthWidgetDefault);
                 local shortName = settings.yields[state.settings.setPrices.gathering][yield].short;
                 local adjItemName = shortName or yield;
-                if (imgui.InputInt2(adjItemName, uiVariables[string.format("var_%s_%s_prices", state.settings.setPrices.gathering, string.clean(yield))][1])) then
-                    local prices = imgui.GetVarValue(uiVariables[string.format("var_%s_%s_prices", state.settings.setPrices.gathering, string.clean(yield))][1]);
+                if (imgui.InputInt2(adjItemName, uiVariables[string.format("var_%s_%s_prices", state.settings.setPrices.gathering, yield)][1])) then
+                    local prices = imgui.GetVarValue(uiVariables[string.format("var_%s_%s_prices", state.settings.setPrices.gathering, yield)][1]);
                     settings.yields[state.settings.setPrices.gathering][yield].singlePrice = prices[1];
                     settings.yields[state.settings.setPrices.gathering][yield].stackPrice = prices[2];
                 end
@@ -1472,14 +1605,24 @@ function renderSettingsSetColors()
     if imgui.BeginChild("Set Colors", -1, state.window.heightSettingsContent, imgui.GetVarValue(uiVariables['var_WindowVisible'][1]), imgui.bor(ImGuiWindowFlags_MenuBar, ImGuiWindowFlags_NoResize)) then
         imgui.SetWindowFontScale(state.window.scale);
         if imgui.BeginMenuBar() then
+            local btnAction = function(data)
+                state.settings.setColors.gathering = data.name;
+            end
             for _, data in ipairs(gatherTypes) do
-                if data.name == state.settings.setColors.gathering then
-                    imgui.PushStyleColor(ImGuiCol_Button, 0.21, 0.47, 0.59, 1); -- info
-                    if imgui.SmallButton(string.upperfirst(data.short)) then state.settings.setColors.gathering = data.name end
-                    imgui.PopStyleColor();
+                if state.values.btnTextureFailure or not settings.general.useImageButtons then
+                    pushActiveBtnColor(data.name == state.settings.setColors.gathering);
+                    if imgui.SmallButton(string.upperfirst(data.short)) then
+                        btnAction(data);
+                    end
                 else
-                    if imgui.SmallButton(string.upperfirst(data.short)) then state.settings.setColors.gathering = data.name end
+                    local texture = textures[data.name];
+                    pushActiveBtnColor(data.name == state.settings.setColors.gathering);
+                    local textureSize = state.window.sizeGatherTexture;
+                    if imgui.ImageButton(texture:Get(), textureSize, textureSize) then
+                        btnAction(data);
+                    end
                 end
+                imgui.PopStyleColor();
                 if imgui.IsItemHovered() then
                     imgui.SetTooltip(string.upperfirst(data.name));
                 end
@@ -1488,22 +1631,24 @@ function renderSettingsSetColors()
 
             -- Defaults
             local spaceColorDefaults = state.window.spaceColorDefaults;
-            if settings.general.showToolTips then spaceColorDefaults = spaceColorDefaults - ( imgui.GetFontSize() * 24 / defaultFontSize ) end
+            if settings.general.showToolTips then
+                spaceColorDefaults = spaceColorDefaults - ( imgui.GetFontSize() * 24 / defaultFontSize );
+                if state.window.scale > 1.0 then spaceColorDefaults = spaceColorDefaults + 2 end;
+            end
             imgui.SameLine(0.0, spaceColorDefaults);
             imgui.AlignFirstTextHeightToWidgets();
             if imguiShowToolTip(string.format("Set all %s yield colors to their defaults.", string.upperfirst(state.settings.setColors.gathering)), settings.general.showToolTips) then
                 imgui.SameLine(0.0, state.window.spaceToolTip);
             end
-
-            imgui.PushStyleColor(ImGuiCol_Button, 0.21, 0.47, 0.59, 1); -- info
+            --imgui.PushStyleColor(ImGuiCol_Button, 0.21, 0.47, 0.59, 1); -- info
             if imgui.SmallButton("Defaults") then
                 for yield, data in pairs(settings.yields[state.settings.setColors.gathering]) do
                     settings.yields[state.settings.setColors.gathering][yield].color = -3877684 -- plain
                     local r, g, b, a = colorToRGBA(-3877684);
-                    imgui.SetVarValue(uiVariables[string.format("var_%s_%s_color", state.settings.setColors.gathering, string.clean(yield))][1], r/255, g/255, b/255, a/255);
+                    imgui.SetVarValue(uiVariables[string.format("var_%s_%s_color", state.settings.setColors.gathering, yield)][1], r/255, g/255, b/255, a/255);
                 end
             end
-            imgui.PopStyleColor();
+            --imgui.PopStyleColor();
             -- /Defaults
             imgui.EndMenuBar();
         end
@@ -1521,8 +1666,8 @@ function renderSettingsSetColors()
                 imgui.PushItemWidth(state.window.widthWidgetDefault);
                 local shortName = settings.yields[state.settings.setColors.gathering][yield].short;
                 local adjItemName = shortName or yield;
-                if (imgui.ColorEdit4(adjItemName, uiVariables[string.format("var_%s_%s_color", state.settings.setColors.gathering, string.clean(yield))][1])) then
-                    settings.yields[state.settings.setColors.gathering][yield].color = colorTableToInt(imgui.GetVarValue(uiVariables[string.format("var_%s_%s_color", state.settings.setColors.gathering, string.clean(yield))][1]));
+                if (imgui.ColorEdit4(adjItemName, uiVariables[string.format("var_%s_%s_color", state.settings.setColors.gathering, yield)][1])) then
+                    settings.yields[state.settings.setColors.gathering][yield].color = colorTableToInt(imgui.GetVarValue(uiVariables[string.format("var_%s_%s_color", state.settings.setColors.gathering, yield)][1]));
                 end
                 imgui.PopStyleColor();
                 imgui.PopItemWidth();

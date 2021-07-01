@@ -72,11 +72,11 @@ stateTemplate =
         yieldsLabelIndex     = 1, -- Full
         valuesLabelIndex     = 1, -- Full
         yieldSortIndex       = 3, -- Count (DESC)
-        windowScaleIndex     = 1, -- Default
         yieldListBtnsHovered = false,
         yieldListHovered     = false,
         yieldListClicked     = false,
         inactivitySeconds    = 0,
+        btnTextureFailure    = false
     },
     actions =
     {
@@ -96,6 +96,7 @@ defaultSettingsTemplate =
         windowScaleIndex    = 0,
         showDetailedYields  = true,
         yieldDetailsColor   = -3877684,
+        useImageButtons     = true
     },
     state =
     {
@@ -276,36 +277,36 @@ defaultSettingsTemplate =
         },
         clamming =
         {
-            ["Oxblood"]           = { id = 1311,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["Turtle Shell"]      = { id = 885,   short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["HQ Crab Shell"]     = { id = 1193,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["Lacquer Tree Log"]  = { id = 1446,  short = "Lacq. Tree Log", singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["Bibiki Urchin"]     = { id = 4318,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["Titanictus Shell"]  = { id = 1586,  short = "Titan. Shell", singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["Tropical Clam"]     = { id = 5124,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["Elm Log"]           = { id = 690,   short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["Coral Fragment"]    = { id = 887,   short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["Petrified Log"]     = { id = 703,   short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["Maple Log"]         = { id = 691,   short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["Pamamas"]           = { id = 4468,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["HQ Pugil Scales"]   = { id = 3270,  short = "HQ Pug. Scales", singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["Seashell"]          = { id = 888,   short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["Hobgoblin Bread"]   = { id = 4328,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["Broken Willow Rod"] = { id = 485,   short = "Bkn. Willow Rod", singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["Goblin Armor"]      = { id = 510,   short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["Elshimo Coconut"]   = { id = 5187,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["Goblin Mail"]       = { id = 507,   short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["Crab Shell"]        = { id = 881,   short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["Hobgoblin Pie"]     = { id = 4325,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["Rock Salt"]         = { id = 936,   short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["Nebimonite"]        = { id = 4361,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["Fish Scales"]       = { id = 864,   short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["Shall Shell"]       = { id = 4484,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["Pamtam Kelp"]       = { id = 624,   short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["Igneous Rock"]      = { id = 1654,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["Pebble"]            = { id = 17296, short = nil, singlePrice = 0, stackPrice = 0, stackSize = 99, color = -3877684, soundFile = "" },
-            ["Jacknife"]          = { id = 5123,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-            ["Bibiki Slug"]       = { id = 5122,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Oxblood"]                    = { id = 1311,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Turtle Shell"]               = { id = 885,   short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["HQ Crab Shell"]              = { id = 1193,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Lacquer Tree Log"]           = { id = 1446,  short = "Lacq. Tree Log", singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Bibiki Urchin"]              = { id = 4318,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Titanictus Shell"]           = { id = 1586,  short = "Titan. Shell", singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Tropical Clam"]              = { id = 5124,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Elm Log"]                    = { id = 690,   short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Coral Fragment"]             = { id = 887,   short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Petrified Log"]              = { id = 703,   short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Maple Log"]                  = { id = 691,   short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Pamamas"]                    = { id = 4468,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["High-Quality Pugil Scale"]   = { id = 3270,  short = "HQ Pugil Scale", singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Seashell"]                   = { id = 888,   short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Hobgoblin Bread"]            = { id = 4328,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Broken Willow Rod"]          = { id = 485,   short = "Bkn. Willow Rod", singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Goblin Armor"]               = { id = 510,   short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Elshimo Coconut"]            = { id = 5187,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Goblin Mail"]                = { id = 507,   short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Crab Shell"]                 = { id = 881,   short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Hobgoblin Pie"]              = { id = 4325,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Rock Salt"]                  = { id = 936,   short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Nebimonite"]                 = { id = 4361,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Fish Scales"]                = { id = 864,   short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Shall Shell"]                = { id = 4484,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Pamtam Kelp"]                = { id = 624,   short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Igneous Rock"]               = { id = 1654,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Pebble"]                     = { id = 17296, short = nil, singlePrice = 0, stackPrice = 0, stackSize = 99, color = -3877684, soundFile = "" },
+            ["Jacknife"]                   = { id = 5123,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Bibiki Slug"]                = { id = 5122,  short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
         },
         fishing =
         {

@@ -1,12 +1,12 @@
 **Author:** [Sjshovan (LoTekkie)](https://github.com/LoTekkie)  
-**Version:** v0.9.0b
+**Version:** v0.9.1b
 
 
 # Yield
 
 > An Ashita v3 addon that allows you to track and edit gathering metrics within a simple GUI in Final Fantasy 11 Online.
 
-### *This Addon is currently in Beta and is a WIP. I am aiming to have it completed by 07/01/2021.*
+### *This Addon is currently in Beta and is a WIP. I am aiming to have it completed by 07/05/2021.*
 
 ### Table of Contents
 
@@ -124,7 +124,19 @@ ___
 * For Gil donations: I play on Wings private server! (<https://www.wingsxi.com/wings/>) My in-game name is LoTekkie.
 
 ___
-### Change Log    
+### Change Log
+**v0.9.1b** - 7/1/2021   
+- Revamped price settings.
+- Added yield list buttons.
+- Added NPC base price option.
+- Added logging data.
+- Added excavating data.
+- Added clamming data.
+- Added image buttons option.
+- Added inactivity tracker.
+- Updated addon title.
+- Bug fixes.
+- UI changes.
 
 **v0.9.0b** - 6/28/2021  
 - Rewrote state management system.
@@ -135,8 +147,8 @@ ___
 - Added ability to change yield colors.
 - Added new settings options.
 - Added cycle options for yield and plot labels.
-- Added timer controls
-- Added tooltips
+- Added timer controls.
+- Added tooltips.
 - Added input for estimated value.
 - Added fishing and digging gathering types.
 - Added stack prices option.
@@ -160,7 +172,6 @@ ___
 - **TODO:** Add reports generation feature for all gathering types.
 - **TODO:** Add/Update documentation.
 - **TODO:** Add feedback feature.
-- **TODO:** Add ability to update values on price changes.
 - **TODO:** Cleanup code, re-write to improve performance/readability.
 ___
 

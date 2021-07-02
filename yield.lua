@@ -75,7 +75,7 @@ local gatherTypes =
     [3] = { name = "logging",    short = "lo.", target = "Logging Point",    tool = "hatchet",       toolId = 1021, action = "cut off" },
     [4] = { name = "mining",     short = "mi.", target = "Mining Point",     tool = "pickaxe",       toolId = 605,  action = "dig up" },
     [5] = { name = "clamming",   short = "cl.", target = "Clamming Point",   tool = "clamming kit",  toolId = 511,  action = "find" },
-    [6] = { name = "fishing",    short = "fi.", target = nil,                tool = "bait",          toolId = 3,    action = "" },
+    [6] = { name = "fishing",    short = "fi.", target = nil,                tool = "bait",          toolId = 3,    action = "caught" },
     [7] = { name = "digging",    short = "di.", target = nil,                tool = "gysahl green",  toolId = 4545, action = "" }
 }
 
@@ -150,7 +150,8 @@ local helpTable =
 local modalConfirmPromptTemplate = "Are you sure you want to %s?";
 local defaultFontSize            = imgui.GetFontSize();
 
-local sounds = { [0] = "" }
+local sounds = { [0] = "" };
+local reports = {};
 
 ----------------------------------------------------------------------------------------------------
 -- UI Variables
@@ -181,7 +182,6 @@ local uiVariables =
 ----------------------------------------------------------------------------------------------------
 function loadUiVariables()
     -- Load the UI variables..
-
     imgui.SetVarValue(uiVariables["var_WindowOpacity"][1], settings.general.opacity);
     imgui.SetVarValue(uiVariables["var_TargetValue"][1], settings.general.targetValue);
     imgui.SetVarValue(uiVariables["var_ShowToolTips"][1], settings.general.showToolTips);
@@ -278,10 +278,10 @@ end
 ----------------------------------------------------------------------------------------------------
 function getPrice(itemName)
     local data = settings.yields[state.gathering][itemName];
-    local price = data.singlePrice;
+    local price = data.singlePrice or 0;
     switch(settings.priceModes[state.gathering]) : caseof
     {
-        [0] = function() price = data.stackPrice / data.stackSize end, -- stackPrice
+        [0] = function() price = data.stackPrice / data.stackSize or 0 end, -- stackPrice
         [2] = function() price = basePrices[data.id] or 0 end, -- NPCPrice
     }
     return math.floor(price);
@@ -624,10 +624,13 @@ ashita.register_event('load', function()
     end
 
     -- Retrieve sounds files..
-    local soundIndex = 1;
     for f in io.popen(string.format("dir %s\\sounds /b", _addon.path)):lines() do
-        sounds[soundIndex] = f;
-        soundIndex = soundIndex + 1;
+        sounds[#sounds + 1] = f;
+    end
+
+    -- Retrieve reports..
+    for f in io.popen(string.format("dir %s\\reports /b", _addon.path)):lines() do
+        reports[#reports + 1] = f;
     end
 
     -- Create timers..
@@ -778,17 +781,26 @@ ashita.register_event('incoming_text', function(mode, message, modifiedmode, mod
         local gatherData = getGatherTypeData(state.gathering);
         switch(gatherData.name) : caseof
         {
+            ["fishing"] = function ()
+                successBreak = false;
+                success = string.match(message, string.format("%s a[n]? (.*)!", gatherData.action)) or successBreak
+                unable = string.contains(message, "You didn't catch anything.") or string.contains(message, "You give up.");
+                broken = string.contains(message, "Your rod breaks.");
+                lost = string.contains(message, "You lost your catch.") or string.contains(message, "Your line breaks.");
+            end,
             ["clamming"] = function ()
                 successBreak = string.match(message, string.format("^You %s a[n]? (.*) and toss it into your bucket...", gatherData.action));
                 success = string.match(message, string.format("^You %s a[n]? (.*) and toss it into your bucket.", gatherData.action)) or successBreak
-                unable = string.match(message, "^You cannot collect .*") or string.contains(message, "someone has been digging here.");
+                unable = string.contains(message, "You cannot collect") or string.contains(message, "someone has been digging here.");
                 broken = false;
+                lost = false;
             end,
             ["default"] = function ()
                 successBreak = string.match(message, string.format("^You %s a[n]? (.*), but your %s .*", gatherData.action, gatherData.tool));
                 success = string.match(message, string.format("^You successfully %s a[n]? (.*)!", gatherData.action)) or successBreak
-                unable = string.match(message, "^You are unable to .*");
+                unable = string.contains(message, "You are unable to");
                 broken = string.match(message, "^Your (.*) breaks!");
+                lost = false;
             end
         }
 
@@ -812,7 +824,7 @@ ashita.register_event('incoming_text', function(mode, message, modifiedmode, mod
             adjTotal("yields", 1);
         elseif broken then
             adjTotal("breaks", 1);
-        elseif full then
+        elseif full or lost then
             adjTotal("lost", 1);
         end
         if success or unable or broken or full then
@@ -852,7 +864,17 @@ ashita.register_event('outgoing_packet', function(id, size, packet, packet_modif
             state.attemptType = "clamming";
             state.gathering = "clamming";
         end
+    elseif id == 0x110 then -- fishing
+        if struct.unpack("H", packet, 0x0E + 1) > 0 then
+            state.attempting = true;
+            state.attemptType = "fishing";
+            state.gathering = "fishing";
+        end
+        print("0x10: " .. struct.unpack("H", packet, 0x10 + 1));
+        print("0x0E: " .. struct.unpack("H", packet, 0x0E + 1));
+        print("0x08: " .. struct.unpack("H", packet, 0x08 + 1));
     end
+
     return false;
 end);
 
@@ -932,7 +954,6 @@ ashita.register_event('render', function()
         offsetNameCursorY     = scaledFontSize * 5.0   / defaultFontSize,
         sizeGatherTexture     = scaledFontSize * 20.0  / defaultFontSize,
         spaceBtnRecalculate   = scaledFontSize * 55.0  / defaultFontSize,
-
     }
 
     -- MAIN_MENU TODO: cleanup
@@ -994,6 +1015,11 @@ ashita.register_event('render', function()
         imgui.Text(metrics[state.gathering].totals[metric])
     end
     -- totals metrics
+
+    -- Lotekkie & Narpt
+    imgui.SameLine();
+    imgui.Text("test");
+    -- /Lotekkie & Narpt
 
     -- gathering tools
     if imguiShowToolTip("Total gathering tools on hand.", settings.general.showToolTips) then
@@ -1661,7 +1687,7 @@ function renderSettingsSetPrices()
                 imgui.SameLine(0.0, state.window.spaceGatherBtn);
             end
 
-            -- Clear prices
+            -- Defaults
             local spacePriceDefaults = state.window.spacePriceDefaults;
             if settings.general.showToolTips then
                 spacePriceDefaults = spacePriceDefaults - ( imgui.GetFontSize() * 24 / defaultFontSize );
@@ -1678,8 +1704,9 @@ function renderSettingsSetPrices()
                     settings.yields[gathering][yield].stackPrice = 0;
                     imgui.SetVarValue(uiVariables[string.format("var_%s_%s_prices", gathering, yield)][1], 0, 0);
                 end
+                imgui.SetVarValue(uiVariables[string.format("var_%s_priceMode", gathering)][1], 0);
             end
-            -- Clear prices
+            -- Defaults
             imgui.EndMenuBar();
         end
 
@@ -1730,20 +1757,22 @@ function renderSettingsSetPrices()
         imgui.Separator();
         if imgui.BeginChild("Scrolling", -1, -1) then
             imgui.SetWindowFontScale(state.window.scale);
-            for data, yield in pairs(table.sortKeysByAlphabet(settings.yields[gathering], true)) do
-                imgui.AlignFirstTextHeightToWidgets();
-                if imguiShowToolTip(string.format("Set the single-item and or stack prices for %s.", yield), settings.general.showToolTips) then
-                    imgui.SameLine(0.0, state.window.spaceToolTip);
+            for i, yield in pairs(table.sortKeysByAlphabet(settings.yields[gathering], true)) do
+                local data = settings.yields[gathering][yield];
+                 if data.id ~= nil then
+                    imgui.AlignFirstTextHeightToWidgets();
+                    if imguiShowToolTip(string.format("Set the single-item and or stack prices for %s.", yield), settings.general.showToolTips) then
+                        imgui.SameLine(0.0, state.window.spaceToolTip);
+                    end
+                    imgui.PushItemWidth(state.window.widthWidgetDefault);
+                    local adjItemName = data.short or yield;
+                    if (imgui.InputInt2(adjItemName, uiVariables[string.format("var_%s_%s_prices", gathering, yield)][1])) then
+                        local prices = imgui.GetVarValue(uiVariables[string.format("var_%s_%s_prices", gathering, yield)][1]);
+                        settings.yields[gathering][yield].singlePrice = prices[1];
+                        settings.yields[gathering][yield].stackPrice = prices[2];
+                    end
+                    imgui.PopItemWidth();
                 end
-                imgui.PushItemWidth(state.window.widthWidgetDefault);
-                local shortName = settings.yields[gathering][yield].short;
-                local adjItemName = shortName or yield;
-                if (imgui.InputInt2(adjItemName, uiVariables[string.format("var_%s_%s_prices", gathering, yield)][1])) then
-                    local prices = imgui.GetVarValue(uiVariables[string.format("var_%s_%s_prices", gathering, yield)][1]);
-                    settings.yields[gathering][yield].singlePrice = prices[1];
-                    settings.yields[gathering][yield].stackPrice = prices[2];
-                end
-                imgui.PopItemWidth();
             end
             imgui.EndChild()
         end

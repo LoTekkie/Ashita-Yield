@@ -1,5 +1,5 @@
 **Author:** [Sjshovan (LoTekkie)](https://github.com/LoTekkie)  
-**Version:** v0.9.1b
+**Version:** v0.9.2b
 
 
 # Yield
@@ -125,6 +125,16 @@ ___
 
 ___
 ### Change Log
+**v0.9.2b** - 7/2/2021  
+- Added yield sound alerts.
+- Added target value sound alert.
+- Added set all options to colors and alerts settings.
+- Adjusted price settings UI.
+- Added option to enable/disable sound alerts.
+- Added rounding to all UI elements.
+- Bug fixes.
+- Updated about section.
+
 **v0.9.1b** - 7/1/2021   
 - Revamped price settings.
 - Added yield list buttons.

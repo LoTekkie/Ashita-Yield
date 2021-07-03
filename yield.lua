@@ -38,6 +38,7 @@ require 'helpers';
 
 require 'common';
 require 'ffxi.enums';
+require 'ffxi.vanatime';
 require 'timer';
 require 'd3d8';
 
@@ -174,6 +175,8 @@ local uiVariables =
     ['var_AllSoundIndex']      = { nil, ImGuiVar_UINT32, 0 },
     ['var_AllColors']          = { nil, ImGuiVar_FLOATARRAY, 4 },
     ["var_TargetSoundIndex"]   = { nil, ImGuiVar_UINT32, 0 },
+    ["var_IssueTitle"]         = { nil, ImGuiVar_CDSTRING, 256 },
+    ["var_IssueBody"]          = { nil, ImGuiVar_CDSTRING, 16384 },
 }
 
 ----------------------------------------------------------------------------------------------------
@@ -527,6 +530,37 @@ function checkTargetAlertReady()
 end
 
 ----------------------------------------------------------------------------------------------------
+-- func:
+-- desc: .
+----------------------------------------------------------------------------------------------------
+function sendIssue(title, body)
+    io.popen(string.format('%s "%s" "%s"', _addon.path .. "tools\\sendissue.exe", title, body));
+end
+
+----------------------------------------------------------------------------------------------------
+-- func:
+-- desc: .
+----------------------------------------------------------------------------------------------------
+function file_exists(file)
+  local f = io.open(file, "rb")
+  if f then f:close() end
+  return f ~= nil
+end
+
+----------------------------------------------------------------------------------------------------
+-- func:
+-- desc: .
+----------------------------------------------------------------------------------------------------
+function lines_from(file)
+  if not file_exists(file) then return {} end
+  lines = {}
+  for line in io.lines(file) do
+    lines[#lines + 1] = line
+  end
+  return lines
+end
+
+----------------------------------------------------------------------------------------------------
 -- func: saveSettings
 -- desc: Saves the Yield settings file.
 ----------------------------------------------------------------------------------------------------
@@ -604,6 +638,18 @@ ashita.register_event('load', function()
         end
         textures[data.name] = texture;
     end
+
+    -- Add moon phase images..
+    --[[
+    for phase = 0, 12 do
+        local texturePath = string.format('images\\moon%s.png', phase)
+        local hres, texture = ashita.d3dx.CreateTextureFromFileA(_addon.path .. texturePath);
+        if texture == nil then
+            displayResponse(string.format("Yield: Failed to load texture (%s).", texturePath), "\31\167%s");
+        end
+        textures["moon_"..phase] = texture;
+    end
+    ]]--
 
     -- Update saved gathering state..
     updateAllStates(settings.state.gathering);
@@ -727,13 +773,13 @@ ashita.register_event('command', function(command, ntype)
 
     elseif commandArgs[2] == 'help' or commandArgs[2] == 'h' then
         displayHelp(helpTable.commands);
-    --[[ -- testing
+    --[[
     elseif commandArgs[2] == "test" then
         settings.general.showToolTips = not settings.general.showToolTips;
 
     elseif commandArgs[2] == "test2" then
         settings.general.windowScaleIndex = cycleIndex(settings.general.windowScaleIndex, 0, 2, 1);
-    ==]]
+    --]]
     else
         displayHelp(helpTable.commands);
     end
@@ -781,10 +827,17 @@ ashita.register_event('incoming_text', function(mode, message, modifiedmode, mod
         local gatherData = getGatherTypeData(state.gathering);
         switch(gatherData.name) : caseof
         {
+            ["digging"] = function ()
+                successBreak = false;
+                success = string.match(message, "Obtained: (.*).") or successBreak
+                unable = string.contains(message, "you dig, but find nothing.");
+                broken = false;
+                lost = false;
+            end,
             ["fishing"] = function ()
                 successBreak = false;
                 success = string.match(message, string.format("%s a[n]? (.*)!", gatherData.action)) or successBreak
-                unable = string.contains(message, "You didn't catch anything.") or string.contains(message, "You give up.");
+                unable = string.contains(message, "You didn't catch anything.") or string.contains(message, "You give up");
                 broken = string.contains(message, "Your rod breaks.");
                 lost = string.contains(message, "You lost your catch.") or string.contains(message, "Your line breaks.");
             end,
@@ -858,23 +911,21 @@ ashita.register_event('outgoing_packet', function(id, size, packet, packet_modif
                 state.gathering = data.name;
             end
         end
-    elseif id == 0x1A then -- clam
+    elseif id == 0x01A then -- clam
         if ashitaTarget:GetTargetName() == "Clamming Point" then
             state.attempting = true;
             state.attemptType = "clamming";
             state.gathering = "clamming";
+        elseif struct.unpack("H", packet, 0x0A) == 0x1104 then -- digging
+            state.attempting = true;
+            state.attemptType = "digging";
+            state.gathering = "digging";
         end
     elseif id == 0x110 then -- fishing
-        if struct.unpack("H", packet, 0x0E + 1) > 0 then
-            state.attempting = true;
-            state.attemptType = "fishing";
-            state.gathering = "fishing";
-        end
-        print("0x10: " .. struct.unpack("H", packet, 0x10 + 1));
-        print("0x0E: " .. struct.unpack("H", packet, 0x0E + 1));
-        print("0x08: " .. struct.unpack("H", packet, 0x08 + 1));
+        state.attempting = true;
+        state.attemptType = "fishing";
+        state.gathering = "fishing";
     end
-
     return false;
 end);
 
@@ -909,7 +960,9 @@ ashita.register_event('render', function()
     imgui.PushStyleVar(ImGuiStyleVar_Alpha, settings.general.opacity);
     imgui.PushStyleVar(ImGuiStyleVar_WindowPadding, scaledFontSize*5/defaultFontSize, scaledFontSize*5/defaultFontSize);
     imgui.PushStyleColor(ImGuiCol_Border, 0.21, 0.47, 0.59, 0.5);
-
+    imgui.PushStyleColor(ImGuiCol_PlotLines, 0.77, 0.83, 0.80, 0.3);
+    imgui.PushStyleColor(ImGuiCol_PlotHistogram, 0.77, 0.83, 0.80, 0.3);
+    imgui.PushStyleColor(ImGuiCol_TitleBgActive, 17/255, 17/255, 30/255, 1.0);
     -- MAIN
     imgui.SetNextWindowSize(scaledFontSize*250/defaultFontSize, scaledFontSize*500/defaultFontSize - scaledHeightReduction, ImGuiSetCond_Always);
     if not imgui.Begin(string.format("%s v%s | Lotekkie & Narpt", _addon.name, _addon.version), imgui.GetVarValue(uiVariables['var_WindowVisible'][1]), imgui.bor(ImGuiWindowFlags_MenuBar, ImGuiWindowFlags_NoResize)) then
@@ -1004,22 +1057,31 @@ ashita.register_event('render', function()
     -- /MAIN_HEADER
 
     imguiHalfSep(true);
-
+    --[[ TODO: consider images here..
+    imgui.SetCursorPosY(imgui.GetCursorPosY() - 10.0);
+    imgui.SetCursorPosX(imgui.GetCursorPosX() + 140.0);
+    --ashita.ffxi.vanatime.get_current_date().moon_percent
+    --print(ashita.ffxi.vanatime.get_current_date().moon_phase);
+    imgui.Image(textures["moon_1"]:Get(), 150, 150);
+        imgui.SetCursorPosY(77);
+    --]]
     -- totals metrics
     for total, metric in pairs(table.sortKeysByLength(metrics[state.gathering].totals, true)) do
         if imguiShowToolTip(metricsTotalsToolTips[metric], settings.general.showToolTips) then
             imgui.SameLine(0.0, state.window.spaceToolTip);
         end
-        imgui.Text(string.format("%s:", string.upperfirst(metric)));
-        imgui.SameLine();
-        imgui.Text(metrics[state.gathering].totals[metric])
+        if state.gathering == "digging" and metric == "breaks" then
+            imgui.Text(string.format("%s:", string.upperfirst("Moon")));
+            imgui.SameLine();
+            local moonPct = tostring(ashita.ffxi.vanatime.get_current_date().moon_percent);
+            imgui.TextUnformatted(moonPct.."%");
+        else
+            imgui.Text(string.format("%s:", string.upperfirst(metric)));
+            imgui.SameLine();
+            imgui.Text(metrics[state.gathering].totals[metric])
+        end
     end
     -- totals metrics
-
-    -- Lotekkie & Narpt
-    imgui.SameLine();
-    imgui.Text("test");
-    -- /Lotekkie & Narpt
 
     -- gathering tools
     if imguiShowToolTip("Total gathering tools on hand.", settings.general.showToolTips) then
@@ -1348,6 +1410,10 @@ ashita.register_event('render', function()
         local r, g, b, a = colorToRGBA(-3877684);
         imgui.SetVarValue(uiVariables["var_AllColors"][1], r/255, g/255, b/255, a/255);
         checkTargetAlertReady();
+        state.values.feedbackSubmitted = false;
+        state.values.feedbackMissing = false;
+        imgui.SetVarValue(uiVariables["var_IssueTitle"][1], "");
+        imgui.SetVarValue(uiVariables["var_IssueBody"][1], "")
     end
 
     imgui.SetNextWindowSize(state.window.widthSettings, state.window.heightSettings - scaledHeightReduction, ImGuiSetCond_Always);
@@ -1360,7 +1426,11 @@ ashita.register_event('render', function()
                 local btnName = string.camelToTitle(data.name);
                 pushActiveBtnColor(state.settings.activeIndex == i);
                 if imgui.Button(btnName) then
-                    state.settings.activeIndex = i;
+                   state.settings.activeIndex = i;
+                   state.values.feedbackSubmitted = false;
+                   state.values.feedbackMissing = false;
+                   imgui.SetVarValue(uiVariables["var_IssueTitle"][1], "");
+                   imgui.SetVarValue(uiVariables["var_IssueBody"][1], "")
                 end
                 imgui.PopStyleColor();
                 imgui.SameLine(0.0, state.window.spaceSettingsBtn);
@@ -1932,7 +2002,7 @@ function renderSettingsSetAlerts()
             --imgui.PushStyleColor(ImGuiCol_Button, 0.21, 0.47, 0.59, 1); -- info
             if imgui.SmallButton("Defaults") then
                 for yield, data in pairs(settings.yields[gathering]) do
-                    settings.yields[gathering][yield].soundIndex = 0 -- plain
+                    settings.yields[gathering][yield].soundIndex = 0
                     imgui.SetVarValue(uiVariables[string.format("var_%s_%s_soundFile", gathering, yield)][1], "");
                     imgui.SetVarValue(uiVariables[string.format("var_%s_%s_soundIndex", gathering, yield)][1], 0);
                     imgui.SetVarValue(uiVariables["var_AllSoundIndex"][1], 0);
@@ -2011,9 +2081,84 @@ end
 function renderSettingsFeedback()
     if imgui.BeginChild("Set Alerts", -1, state.window.heightSettingsContent, true) then
         imgui.SetWindowFontScale(state.window.scale);
-        imgui.Text("Provide general feedback or report and issue.");
+        local hasTitle = imgui.GetVarValue(uiVariables["var_IssueTitle"][1]):len() > 0;
+        local hasBody = imgui.GetVarValue(uiVariables["var_IssueBody"][1]):len() > 0;
+        local msg = "I hope you are enjoying Yield!"
+        local widget = imgui.Text
+        local r, g, b, a = 0.77, 0.83, 0.80, 1 -- plain
+        if not hasTitle and state.values.feedbackMissing then
+            msg = "Please enter a title.   "
+            widget = imgui.BulletText;
+            r, g, b, a = 1, 0.615, 0.615, 1 -- danger
+        elseif not hasBody and state.values.feedbackMissing then
+            msg = "Please enter some feedback.   "
+            widget = imgui.BulletText;
+            r, g, b, a = 1, 0.615, 0.615, 1 -- danger
+        end
+        local fontWidth = (msg:len()*imgui.GetFontSize()/2) / 1.75
+        imgui.SetCursorPosX(imgui.GetContentRegionAvailWidth()/2 - fontWidth);
+        imgui.PushStyleColor(ImGuiCol_Text, r, g, b, a);
+        widget(msg);
+        imgui.PopStyleColor();
+        imguiFullSep();
+        imgui.PushTextWrapPos(imgui.GetContentRegionAvailWidth());
+        imgui.SetCursorPosX(imgui.GetContentRegionAvailWidth()/16);
+        imgui.Text("If you have discovered a problem or just want to provide some feedback you can do so here!")
+        local widgetWidth = state.window.widthWidgetDefault+75
+        local centerWidget = imgui.GetWindowContentRegionWidth()/2 - widgetWidth/2
+        if settings.general.showToolTips then centerWidget = centerWidget - ( imgui.GetFontSize() * 24 / defaultFontSize ); end
+        imgui.SetCursorPosY(imgui.GetWindowHeight() / 5);
+        imgui.SetCursorPosX(centerWidget);
+        imgui.AlignFirstTextHeightToWidgets();
+        imgui.PushItemWidth(widgetWidth);
+        if imguiShowToolTip("Enter a title for your feedback/issue submission.", settings.general.showToolTips) then
+            imgui.SameLine(0.0, state.window.spaceToolTip);
+        end
+        imgui.InputText('Title', uiVariables['var_IssueTitle'][1], 128, imgui.bor(ImGuiInputTextFlags_EnterReturnsTrue));
         imgui.Spacing();
-        imgui.Text("Comming Soon..");
+        imgui.SetCursorPosX(centerWidget);
+        imgui.AlignFirstTextHeightToWidgets();
+        if imguiShowToolTip("Enter your feedback/issue.", settings.general.showToolTips) then
+            imgui.SameLine(0.0, state.window.spaceToolTip);
+        end
+        imgui.InputTextMultiline('Body', uiVariables['var_IssueBody'][1], 16384, state.window.widthWidgetDefault+75, imgui.GetTextLineHeight() * 16, imgui.bor(ImGuiInputTextFlags_AllowTabInput, ImGuiInputTextFlags_EnterReturnsTrue));
+        imgui.PopItemWidth();
+        imgui.Spacing();
+        local widgetPos = state.window.widthWidgetDefault+75
+        local centerWidget = imgui.GetWindowContentRegionWidth()/2 - widgetPos/2
+        imgui.SetCursorPosX(centerWidget);
+        if not state.values.feedbackSubmitted then
+            if imgui.Button("Submit") then
+                if not hasBody or not hasTitle then
+                    state.values.feedbackMissing = true;
+                else
+                   state.values.feedbackSubmitted = true;
+                   state.values.feedbackMissing = false;
+                   local title = imgui.GetVarValue(uiVariables["var_IssueTitle"][1]);
+                   local body = imgui.GetVarValue(uiVariables["var_IssueBody"][1]);
+                   sendIssue(title, body);
+                   imgui.SetVarValue(uiVariables["var_IssueTitle"][1], "");
+                   imgui.SetVarValue(uiVariables["var_IssueBody"][1], "")
+                end
+            end
+        end
+        if state.values.feedbackSubmitted then
+            imgui.SetCursorPosX(centerWidget);
+            imgui.PushStyleColor(ImGuiCol_Text, 0.39, 0.96, 0.13, 1); -- success
+            imgui.Text("Thank you for your feedback!");
+            imgui.PopStyleColor();
+            imgui.SameLine();
+            imgui.PushStyleColor(ImGuiCol_Text, 1, 0.615, 0.615, 1); -- danger
+            imgui.Text("<3");
+            imgui.PopStyleColor();
+        end
+        imgui.PushTextWrapPos(imgui.GetWindowContentRegionWidth());
+        imgui.SetCursorPosY(imgui.GetWindowHeight()-imgui.GetTextLineHeight()*2);
+        if imguiShowToolTip("All submissions are public and will go to LoTekkie's github issue tracker for Ashita-Yield.", settings.general.showToolTips) then
+            imgui.SameLine(0.0, state.window.spaceToolTip);
+        end
+        imgui.Text("* To: https://github.com/LoTekkie/Ashita-Yield/issues.");
+        imgui.PopTextWrapPos();
         imgui.EndChild();
     end
 end

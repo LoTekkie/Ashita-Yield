@@ -1,5 +1,5 @@
 **Author:** [Sjshovan (LoTekkie)](https://github.com/LoTekkie)  
-**Version:** v0.9.2b
+**Version:** v0.9.3b
 
 
 # Yield
@@ -125,6 +125,13 @@ ___
 
 ___
 ### Change Log
+**v0.9.3b** - 7/3/2021
+- Added fishing.
+- Added digging.
+- Added feedback section in settings.
+- Bug fixes.
+- Updated UI.  
+
 **v0.9.2b** - 7/2/2021  
 - Added yield sound alerts.
 - Added target value sound alert.
@@ -176,12 +183,8 @@ ___
 
 ___    
 ### TODOs
-
-- **TODO:** Add the rest of the gathering types data.
-- **TODO:** Add the custom sound alerts functionality.
 - **TODO:** Add reports generation feature for all gathering types.
 - **TODO:** Add/Update documentation.
-- **TODO:** Add feedback feature.
 - **TODO:** Cleanup code, re-write to improve performance/readability.
 ___
 

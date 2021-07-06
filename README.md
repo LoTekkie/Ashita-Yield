@@ -1,5 +1,5 @@
 **Author:** [Sjshovan (LoTekkie)](https://github.com/LoTekkie)  
-**Version:** v0.9.3b
+**Version:** v0.9.4b
 
 
 # Yield
@@ -125,6 +125,16 @@ ___
 
 ___
 ### Change Log
+**v0.9.4b** - 7/6/2021
+- Adjusted volume of UT audio files.
+- Fixed issue with tab targeting focusing value input.
+- Fixed error in chat-log when zoning.
+- Fixed issue with fishing recording catches for others.
+- Fixed name error with Copper Ring while fishing.
+- Added Bomb Arm yield to mining.
+- Fixed incorrect values for tools and inventory metrics when zoning.
+- Updated about in settings.
+
 **v0.9.3b** - 7/3/2021
 - Added fishing.
 - Added digging.

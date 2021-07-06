@@ -29,7 +29,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 _addon.name = 'Yield';
 _addon.description = 'Track and edit a variety of metrics related to gathering within a simple GUI.';
 _addon.author = 'Sjshovan (LoTekkie) Sjshovan@Gmail.com';
-_addon.version = '0.9.3b';
+_addon.version = '0.9.4b';
 _addon.commands = {'/yield', '/yld'};
 
 require 'templates';
@@ -43,11 +43,8 @@ require 'timer';
 require 'd3d8';
 
 --[[ #TODOs & Notes
-    - update about
     - generate reports on zone change and reset (add option to opt out)
-    - add other gathering data
     - add documentation
-    - update ver
     - cleanup code
     - figure out a way to scale better, use table? can we align?
 --]]
@@ -258,8 +255,10 @@ function updatePlayerStorage()
         if data.name ~= "clamming" then
             local itemId = data.toolId;
             if data.name == "fishing" then -- check equipment (for fishing bait)
-                local itemIndex = ashitaInventory:GetEquippedItem(data.toolId).ItemIndex;
-                itemId = getItemIdFromContainers(itemIndex, containers);
+                local item = ashitaInventory:GetEquippedItem(data.toolId);
+                if item then
+                    itemId = getItemIdFromContainers(item.ItemIndex, containers);
+                end
             end
             storage[data.tool] = getItemCountFromContainers(itemId, containers);
         else -- clamming (key item)
@@ -272,7 +271,6 @@ function updatePlayerStorage()
     end
     storage["available"], storage["available_pct"] = getAvailableStorageFromContainers({0});
     playerStorage = storage;
-    --print(state.attempting);
 end
 
 ----------------------------------------------------------------------------------------------------
@@ -561,6 +559,14 @@ function lines_from(file)
 end
 
 ----------------------------------------------------------------------------------------------------
+-- func:
+-- desc: .
+----------------------------------------------------------------------------------------------------
+function getPlayerName()
+    return ashitaParty.GetMemberName(ashitaParty, 0);
+end
+
+----------------------------------------------------------------------------------------------------
 -- func: saveSettings
 -- desc: Saves the Yield settings file.
 ----------------------------------------------------------------------------------------------------
@@ -805,10 +811,10 @@ ashita.register_event('incoming_text', function(mode, message, modifiedmode, mod
     if not table.hasvalue({919, 654}, mode) then return false; end
     if (blocked or message:startswith(string.char(0x1E, 0x01))) then return false; end
 
-    -- Remove colors form message.
+    -- Remove colors form message..
     message = string.strip_colors(message);
 
-    -- Ensure correct state.
+    -- Ensure correct state..
     updateAllStates(state.attemptType);
 
     -- Check the attempt.
@@ -836,7 +842,7 @@ ashita.register_event('incoming_text', function(mode, message, modifiedmode, mod
             end,
             ["fishing"] = function ()
                 successBreak = false;
-                success = string.match(message, string.format("%s a[n]? (.*)!", gatherData.action)) or successBreak
+                success = string.match(message, string.format("%s %s a[n]? (.*)!", getPlayerName(), gatherData.action)) or successBreak
                 unable = string.contains(message, "You didn't catch anything.") or string.contains(message, "You give up");
                 broken = string.contains(message, "Your rod breaks.");
                 lost = string.contains(message, "You lost your catch.") or string.contains(message, "Your line breaks.");
@@ -934,11 +940,17 @@ end);
 -- desc: .
 ----------------------------------------------------------------------------------------------------
 ashita.register_event('incoming_packet', function(id, size, packet, packet_modified, blocked)
-    if id == 0x00B then -- zoning out
+    if id == 0x00B then -- zoning out (11)
         state.attempting = false;
+        state.values.zoning = true;
         for _, data in ipairs(gatherTypes) do
             state.timers[data.name] = false; -- shutdown timers
         end
+        local gatherData = getGatherTypeData();
+        state.values.preZoneCounts["available"] = playerStorage['available'];
+        state.values.preZoneCounts[gatherData.tool] = playerStorage[gatherData.tool];
+    elseif (id == 0x01D and state.values.zoning) then
+          state.values.zoning = false;
     end
     return false;
 end);
@@ -1094,7 +1106,11 @@ ashita.register_event('render', function()
     end
     imgui.Text(toolName..":");
     imgui.SameLine();
-    imgui.Text(playerStorage[gatherData.tool] or 0);
+
+    local avail = playerStorage[gatherData.tool] or 0;
+    if state.values.zoning then avail = state.values.preZoneCounts[gatherData.tool]; end
+
+    imgui.Text(avail);
     -- /gathering tools
 
     -- inventory
@@ -1111,7 +1127,11 @@ ashita.register_event('render', function()
     end
     imgui.Text("Inventory:")
     imgui.SameLine();
-    imgui.Text(playerStorage['available'] or 0);
+
+    local avail = playerStorage['available'] or 0;
+    if state.values.zoning then avail = state.values.preZoneCounts['available']; end
+
+    imgui.Text(avail);
     imgui.PopStyleColor();
     -- /inventory
 
@@ -1168,12 +1188,14 @@ ashita.register_event('render', function()
     end
 
     imgui.PushItemWidth(-1);
+    imgui.PushAllowKeyboardFocus(false);
     if (imgui.InputInt('', uiVariables[string.format("var_%s_estimatedValue", state.gathering)][1])) then
         metrics[state.gathering].estimatedValue = imgui.GetVarValue(uiVariables[string.format("var_%s_estimatedValue", state.gathering)][1]);
         checkTargetAlertReady();
     end
     imgui.PopStyleColor();
     imgui.PopItemWidth();
+    imgui.PopAllowKeyboardFocus();
     -- /value
 
     imguiHalfSep(true);
@@ -2177,13 +2199,15 @@ function renderSettingsAbout()
         end
         imgui.Text("Special Thanks:");
         imguiFullSep();
-        imgui.Text("To Narpt (https://www.twitch.tv/narpt): For his awesome streams, invaluable feedback/testing, and the idea to make this!");
+        imgui.Text("To Narpt (https://www.twitch.tv/narpt): For his awesome streams, invaluable feedback/ideas/testing, and the inspiration to make this!");
         imgui.Spacing();
         imgui.Text("To Hughesyourdaddy (https://www.omega-ffxi.com): For granting me the freedom to create this within the FFXI Omega private server.");
         imgui.Spacing();
         imgui.Text("To the Ashita team (https://www.ashitaxi.com/): For making this possible.");
         imgui.Spacing();
         imgui.Text("To Ashita Discord members (https://discord.gg/3FbepVGh): For their feedback and knowledge.");
+        imgui.Spacing();
+        imgui.Text("To everyone who reported bugs and submitted feedback, thanks for helping make Yield great!");
         imgui.EndChild();
     end
 end

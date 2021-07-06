@@ -80,6 +80,8 @@ stateTemplate =
         targetAlertReady     = false,
         feedbackSubmitted    = false,
         feedbackMissing      = false,
+        zoning               = false,
+        preZoneCounts        = {},
     },
     actions =
     {
@@ -266,6 +268,7 @@ defaultSettingsTemplate =
             ["Sulfur"]           = { id = 1108, short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
             ["Iron Sand"]        = { id = 1155, short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
             ["Bomb Ash"]         = { id = 928, short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+            ["Bomb Arm"]         = { id = 17316, short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
             ["Goblin Die"]       = { id = 568, short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
             ["Demon Horn"]       = { id = 902, short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
             ["Aht Urhgan Brass"] = { id = 2417, short = "Aht Urh. Brass", singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
@@ -341,7 +344,7 @@ defaultSettingsTemplate =
            ["Cobalt Jellyfish"]  = { id = 4443, short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
            ["Cone Calamary"]     = { id = 5128, short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
            ["Copper Frog"]       = { id = 4515, short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
-           ["Copper ring"]       = { id = 13454, short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
+           ["Copper Ring"]       = { id = 13454, short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
            ["Coral Butterfly"]   = { id = 4580, short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
            ["Coral Fragment"]    = { id = 887, short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },
            ["Crayfish"]          = { id = 4472, short = nil, singlePrice = 0, stackPrice = 0, stackSize = 12, color = -3877684, soundFile = "" },

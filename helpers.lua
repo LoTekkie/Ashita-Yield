@@ -157,6 +157,44 @@ end
 -- func:
 -- desc: .
 ----------------------------------------------------------------------------------------------------
+function table.sortReportsByDate(t, desc)
+    local ret = {}
+    for k, v in pairs(t) do
+        table.insert(ret, v)
+    end
+    local now = os.time();
+    if (desc) then
+        table.sort(ret, function(a, b)
+            local yA, mA, dA = string.match(string.gsub(string.match(a, "__(.*)__"), "_", "-"), "(%d%d%d%d)-?(%d?%d?)-?(%d?%d?)$");
+            local hA, miA, sA = string.match(string.gsub(string.match(a, ".*__(.*).log$"), "_", ":"), "(%d%d):?(%d?%d?):?(%d?%d?)$");
+            local yB, mB, dB = string.match(string.gsub(string.match(b, "__(.*)__"), "_", "-"), "(%d%d%d%d)-?(%d?%d?)-?(%d?%d?)$");
+            local hB, miB, sB = string.match(string.gsub(string.match(b, ".*__(.*).log$"), "_", ":"), "(%d%d):?(%d?%d?):?(%d?%d?)$");
+
+            local diffA = os.difftime(now, os.time{year=yA, month=mA, day=dA, hour=hA, min=miA, sec=sA});
+            local diffB = os.difftime(now, os.time{year=yB, month=mB, day=dB, hour=hB, min=miB, sec=sB});
+
+            return diffA < diffB
+        end);
+    else
+        table.sort(ret, function(a, b)
+            local yA, mA, dA = string.match(string.gsub(string.match(a, "__(.*)__"), "_", "-"), "(%d%d%d%d)-?(%d?%d?)-?(%d?%d?)$");
+            local hA, miA, sA = string.match(string.gsub(string.match(a, ".*__(.*).log$"), "_", ":"), "(%d%d):?(%d?%d?):?(%d?%d?)$");
+            local yB, mB, dB = string.match(string.gsub(string.match(b, "__(.*)__"), "_", "-"), "(%d%d%d%d)-?(%d?%d?)-?(%d?%d?)$");
+            local hB, miB, sB = string.match(string.gsub(string.match(b, ".*__(.*).log$"), "_", ":"), "(%d%d):?(%d?%d?):?(%d?%d?)$");
+
+            local diffA = os.difftime(now, os.time{year=yA, month=mA, day=dA, hour=hA, min=miA, sec=sA});
+            local diffB = os.difftime(now, os.time{year=yB, month=mB, day=dB, hour=hB, min=miB, sec=sB});
+
+            return diffA > diffB
+        end);
+    end
+    return ret;
+end
+
+----------------------------------------------------------------------------------------------------
+-- func:
+-- desc: .
+----------------------------------------------------------------------------------------------------
 function table.getIndexFromKey(t, key)
     for _, k in ipairs(table.keys(t)) do
         if key == k then
@@ -276,4 +314,42 @@ function colorToRGBA(c)
     local g = bit.rshift(bit.band(c, 0x0000FF00), 8);
     local b = bit.band(c, 0x000000FF);
     return r, g, b, a;
+end
+
+----------------------------------------------------------------------------------------------------
+-- func:
+-- desc: .
+----------------------------------------------------------------------------------------------------
+function imguiPushActiveBtnColor(cond)
+    if cond then
+        imgui.PushStyleColor(ImGuiCol_Button, 0.21, 0.47, 0.59, 1); -- info
+    else
+        imgui.PushStyleColor(ImGuiCol_Button, 0.25, 0.69, 1.0, 0.1); -- secondary
+    end
+    return cond;
+end
+
+----------------------------------------------------------------------------------------------------
+-- func:
+-- desc: .
+----------------------------------------------------------------------------------------------------
+function imguiPushDisabled(cond)
+    if cond then
+        imgui.PushStyleVar(ImGuiStyleVar_Alpha, 0.5);
+        imgui.PushStyleColor(ImGuiCol_ButtonHovered, 49/255, 62/255, 75/255, 1);
+        imgui.PushStyleColor(ImGuiCol_ButtonActive, 49/255, 62/255, 75/255, 1);
+    end
+    return cond;
+end
+
+----------------------------------------------------------------------------------------------------
+-- func:
+-- desc: .
+----------------------------------------------------------------------------------------------------
+function imguiPopDisabled(cond)
+    if cond then
+        imgui.PopStyleVar();
+        imgui.PopStyleColor();
+        imgui.PopStyleColor();
+    end
 end

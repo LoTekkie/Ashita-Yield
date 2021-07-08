@@ -1,5 +1,5 @@
 **Author:** [Sjshovan (LoTekkie)](https://github.com/LoTekkie)  
-**Version:** v0.9.4b
+**Version:** v0.9.5b
 
 
 # Yield
@@ -125,6 +125,14 @@ ___
 
 ___
 ### Change Log
+**v0.9.5b** - 7/8/2021
+- Fixed stack size data across many yields.
+- Changed Settings window type away from modal.
+- Added feature to disable price inputs when using NPC prices.
+- Added Reports feature and Reports settings.
+- Updated About in Settings.
+- Added Help window.
+
 **v0.9.4b** - 7/6/2021
 - Adjusted volume of UT audio files.
 - Fixed issue with tab targeting focusing value input.
@@ -193,7 +201,6 @@ ___
 
 ___    
 ### TODOs
-- **TODO:** Add reports generation feature for all gathering types.
 - **TODO:** Add/Update documentation.
 - **TODO:** Cleanup code, re-write to improve performance/readability.
 ___

@@ -353,3 +353,13 @@ function imguiPopDisabled(cond)
         imgui.PopStyleColor();
     end
 end
+
+----------------------------------------------------------------------------------------------------
+-- func:
+-- desc: .
+----------------------------------------------------------------------------------------------------
+function wait(seconds)
+    local time = seconds or 1
+    local start = os.time()
+    repeat until os.time() == start + time
+end

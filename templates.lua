@@ -63,6 +63,10 @@ stateTemplate =
         reports     = { gathering = "harvesting" },
         alerts      = { gathering = "harvesting" }
     },
+    help =
+    {
+        activeIndex = 1,
+    },
     timers = {},
     values =
     {
@@ -84,7 +88,10 @@ stateTemplate =
         zoning               = false,
         preZoneCounts        = {},
         settingsWindowOpen   = false,
+        helpWindowOpen       = false,
         lastKnownGathering   = nil,
+        currentReportName    = nil,
+        genReportDisabled    = false,
     },
     actions =
     {

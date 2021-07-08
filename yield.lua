@@ -29,7 +29,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 _addon.name = 'Yield';
 _addon.description = 'Track and edit a variety of metrics related to gathering within a simple GUI.';
 _addon.author = 'Sjshovan (LoTekkie) Sjshovan@Gmail.com';
-_addon.version = '0.9.4b';
+_addon.version = '0.9.5b';
 _addon.commands = {'/yield', '/yld'};
 
 require 'templates';
@@ -44,7 +44,7 @@ require 'timer';
 require 'd3d8';
 
 --[[ #TODOs & Notes
-    - generate reports on zone change and reset (add option to opt out)
+    - add help section
     - add documentation
     - cleanup code
     - figure out a way to scale better, use table? can we align?
@@ -87,6 +87,12 @@ local settingsTypes =
     [5] = { name = "reports" },
     [6] = { name = "feedback" },
     [7] = { name = "about" }
+}
+
+local helpTypes =
+{
+    [1] = { name = "generalInfo" },
+    [2] = { name = "commonQuestions" },
 }
 
 local metricsTotalsToolTips =
@@ -168,16 +174,18 @@ local uiVariables =
     ["var_EnableSoundAlerts"]  = { nil, ImGuiVar_BOOLCPP, true },
     ["var_TargetSoundFile"]    = { nil, ImGuiVar_CDSTRING, 128},
     ["var_AutoGenReports"]     = { nil, ImGuiVar_BOOLCPP, true },
+    ["var_ReportFontScale"]    = { nil, ImGuiVar_FLOAT, 1.0 },
 
     -- Internal
     ['var_WindowVisible']      = { nil, ImGuiVar_BOOLCPP, true },
     ['var_SettingsVisible']    = { nil, ImGuiVar_BOOLCPP, false },
+    ["var_HelpVisible"]        = { nil, ImGuiVar_BOOLCPP, false },
     ['var_AllSoundIndex']      = { nil, ImGuiVar_UINT32, 0 },
     ['var_AllColors']          = { nil, ImGuiVar_FLOATARRAY, 4 },
     ["var_TargetSoundIndex"]   = { nil, ImGuiVar_UINT32, 0 },
     ["var_IssueTitle"]         = { nil, ImGuiVar_CDSTRING, 256 },
     ["var_IssueBody"]          = { nil, ImGuiVar_CDSTRING, 16384 },
-    ['var_ReportSelected']     = { nil, ImGuiVar_INT32 },
+    ['var_ReportSelected']     = { nil, ImGuiVar_INT32, nil },
 }
 
 ----------------------------------------------------------------------------------------------------
@@ -545,7 +553,7 @@ end
 -- func:
 -- desc: .
 ----------------------------------------------------------------------------------------------------
-function file_exists(file)
+function fileExists(file)
   local f = io.open(file, "rb")
   if f then f:close() end
   return f ~= nil
@@ -555,8 +563,8 @@ end
 -- func:
 -- desc: .
 ----------------------------------------------------------------------------------------------------
-function lines_from(file)
-  if not file_exists(file) then return {} end
+function linesFrom(file)
+  if not fileExists(file) then return {} end
   lines = {}
   for line in io.lines(file) do
     lines[#lines + 1] = line
@@ -596,7 +604,7 @@ function generateGatheringReport(gatherType)
     zoneName = string.gsub(zoneName, " ", "_");
     local sep = "------------\n";
     local date = os.date('*t');
-    local dateTimeStamp = string.format("%.4u_%.2u_%.2u__%.2u_%.2u_%2u", date.year, date.month, date.day, date.hour, date.min, date.sec);
+    local dateTimeStamp = string.format("%.4d_%.2d_%.2d__%.2d_%.2d_%.2d", date.year, date.month, date.day, date.hour, date.min, date.sec);
     local fname = string.format('%s__%s.log', zoneName, dateTimeStamp);
     local fpath = string.format('%s/%s/%s', _addon.path, 'reports', gatherType);
     if (not ashita.file.dir_exists(fpath)) then
@@ -604,7 +612,8 @@ function generateGatheringReport(gatherType)
     end
     local file = io.open(string.format('%s/%s', fpath, fname), 'a');
     if (file ~= nil) then
-        file:write(string.format("%s YIELD REPORT : [%s]\n", string.upper(gatherType), dateTimeStamp));
+        local dateTimeStampNice = string.format("%.4d-%.2d-%.2d %.2d:%.2d:%.2d", date.year, date.month, date.day, date.hour, date.min, date.sec);
+        file:write(string.format("%s YIELD REPORT : [%s]\n", string.upper(gatherType), dateTimeStampNice));
         file:write(sep);
         file:write("ZONES\n");
         file:write(sep);
@@ -640,7 +649,7 @@ function generateGatheringReport(gatherType)
         file:write(sep);
         if table.count(metrics.yields) > 0 then
             for name, count in pairs(metrics.yields) do
-                file:write(string.format("\t%s: %s\n", name, count));
+                file:write(string.format("\t%s: %s %s\n", name, count, string.format("@%dea.=(%s)", getPrice(name), math.floor(getPrice(name) * metrics.yields[name]))));
             end
         else
             file:write("\tNone");
@@ -1045,8 +1054,9 @@ ashita.register_event('incoming_packet', function(id, size, packet, packet_modif
         state.values.preZoneCounts["available"] = playerStorage['available'];
         state.values.preZoneCounts[gatherData.tool] = playerStorage[gatherData.tool];
         if state.values.lastKnownGathering ~= nil then
-            --TODO: if we have auto report generation enabled..
-            generateGatheringReport(state.values.lastKnownGathering);
+            if settings.general.autoGenReports then
+                generateGatheringReport(state.values.lastKnownGathering);
+            end
             state.values.lastKnownGathering = nil;
         end
     elseif (id == 0x01D and state.values.zoning) then -- inventory ready
@@ -1150,6 +1160,7 @@ local SettingsWindow =
 
         if state.initializing then
             imgui.SetVarValue(uiVariables["var_SettingsVisible"][1], false);
+            imgui.SetVarValue(uiVariables["var_HelpVisible"][1], false);
             imgui.CloseCurrentPopup();
         end
 
@@ -1157,6 +1168,62 @@ local SettingsWindow =
         imgui.End();
     end
 }
+
+local helpWindow =
+{
+    Draw = function (self, title)
+        local scaledHeightReduction = 0;
+        if state.window.scale == 1.15 then scaledHeightReduction = 7 elseif state.window.scale == 1.30 then scaledHeightReduction = 12 end;
+
+        imgui.SetNextWindowSize(state.window.widthSettings, state.window.heightSettings - scaledHeightReduction, ImGuiSetCond_Always);
+        if (not imgui.Begin(title, uiVariables["var_HelpVisible"][1], imgui.bor(ImGuiWindowFlags_MenuBar, ImGuiWindowFlags_NoResize))) then
+            imgui.End();
+            return;
+        end
+        imgui.SetWindowFontScale(state.window.scale);
+
+        -- HELP_MENU
+        if imgui.BeginMenuBar() then
+            for i, data in ipairs(helpTypes) do
+                local btnName = string.camelToTitle(data.name);
+                imguiPushActiveBtnColor(state.help.activeIndex == i);
+                if imgui.Button(btnName) then
+                    state.help.activeIndex = i;
+                end
+                imgui.PopStyleColor();
+                imgui.SameLine(0.0, state.window.spaceSettingsBtn);
+            end
+            imgui.EndMenuBar();
+        end
+        -- /HELP_MENU
+
+        imgui.BeginGroup();
+        imgui.Spacing();
+        switch(state.help.activeIndex) : caseof
+        {
+            [1] = function() renderHelpGeneral() end,
+            [2] = function() renderHelpQsAndAs() end
+        };
+        imgui.EndGroup();
+        imgui.Spacing();
+
+        if imgui.Button("Done") then
+            imgui.SetVarValue(uiVariables["var_HelpVisible"][1], false);
+        end
+
+        imgui.SameLine();
+        imgui.Text("OR close window to exit.");
+
+        if state.initializing then
+            imgui.SetVarValue(uiVariables["var_SettingsVisible"][1], false);
+            imgui.SetVarValue(uiVariables["var_HelpVisible"][1], false);
+            imgui.CloseCurrentPopup();
+        end
+
+        imgui.End();
+    end
+}
+
 
 ----------------------------------------------------------------------------------------------------
 -- func: render
@@ -1222,7 +1289,8 @@ ashita.register_event('render', function()
         offsetNameCursorY     = scaledFontSize * 5.0   / defaultFontSize,
         sizeGatherTexture     = scaledFontSize * 20.0  / defaultFontSize,
         spaceBtnRecalculate   = scaledFontSize * 152.0 / defaultFontSize,
-        spaceReportsDelete    = scaledFontSize * 339.0 / defaultFontSize,
+        spaceReportsDelete    = scaledFontSize * 176.0 / defaultFontSize,
+        widthReportScale      = scaledFontSize * 150.0 / defaultFontSize
     }
 
     -- MAIN_MENU TODO: cleanup
@@ -1598,6 +1666,10 @@ ashita.register_event('render', function()
 
     if imgui.Button("Reset") then
         state.actions.modalConfirmAction = function()
+            -- Generate report..
+            if settings.general.autoGenReports then
+                generateGatheringReport(state.gathering);
+            end
             -- Reset the metrics..
             metrics[state.gathering] = table.copy(metricsTemplate);
             -- Reset the timers..
@@ -1608,9 +1680,6 @@ ashita.register_event('render', function()
             imgui.SetVarValue(uiVariables[string.format("var_%s_estimatedValue", state.gathering)][1], metrics[state.gathering].estimatedValue);
             -- Reset the zones..
             settings.zones[state.gathering] = {};
-            -- Generate report..
-            -- TODO: if we have auto generation enabled..
-            generateGatheringReport(state.gathering);
             state.values.lastKnownGathering = nil;
         end
         state.values.modalConfirmPrompt = string.format(modalConfirmPromptTemplate, "Reset");
@@ -1622,12 +1691,18 @@ ashita.register_event('render', function()
     imgui.SameLine(0.0, state.window.spaceFooterBtn);
 
     if imgui.Button("Settings") then
+        if imgui.GetVarValue(uiVariables["var_HelpVisible"][1]) then
+            imgui.SetVarValue(uiVariables["var_HelpVisible"][1], false);
+        end
         imgui.SetVarValue(uiVariables["var_SettingsVisible"][1], true);
     end
 
     imgui.SameLine(0.0, state.window.spaceFooterBtn);
     if imgui.Button("Help") then
-        print("Sorry, not yet implemented..")
+        if imgui.GetVarValue(uiVariables["var_SettingsVisible"][1]) then
+            imgui.SetVarValue(uiVariables["var_SettingsVisible"][1], false);
+        end
+        imgui.SetVarValue(uiVariables["var_HelpVisible"][1], true);
     end
 
     -- CONFIRM
@@ -1690,6 +1765,15 @@ ashita.register_event('render', function()
         SettingsWindow:modalSaveAction();
     end
     -- /SETTINGS
+
+    -- HELP
+    if imgui.GetVarValue(uiVariables["var_HelpVisible"][1]) then
+        state.values.helpWindowOpen = true;
+        helpWindow:Draw("Yield Help");
+    elseif state.values.helpWindowOpen then
+        state.values.helpWindowOpen = false;
+    end
+    -- /HELP
 end);
 
 ----------------------------------------------------------------------------------------------------
@@ -2210,14 +2294,15 @@ end
 ----------------------------------------------------------------------------------------------------
 function renderSettingsReports()
     local gathering = state.settings.reports.gathering;
+    local sortedReports = table.sortReportsByDate(reports[gathering], true);
     imgui.PushStyleVar(ImGuiStyleVar_WindowPadding, 5, 5);
     if imgui.BeginChild("Reports", -1, state.window.heightSettingsContent, imgui.GetVarValue(uiVariables['var_WindowVisible'][1]), imgui.bor(ImGuiWindowFlags_MenuBar, ImGuiWindowFlags_NoResize)) then
-
         imgui.SetWindowFontScale(state.window.scale);
         if imgui.BeginMenuBar() then
             local btnAction = function(data)
                 state.settings.reports.gathering = data.name;
                 imgui.SetVarValue(uiVariables['var_ReportSelected'][1], nil);
+                state.values.currentReportName = nil;
             end
             for _, data in ipairs(gatherTypes) do
             if state.values.btnTextureFailure or not settings.general.useImageButtons then
@@ -2239,7 +2324,7 @@ function renderSettingsReports()
             end
             imgui.SameLine(0.0, state.window.spaceGatherBtn);
             end
-            -- Defaults
+            -- Generate
             local spaceColorDefaults = state.window.spaceColorDefaults;
             if settings.general.showToolTips then
                 spaceColorDefaults = spaceColorDefaults - ( imgui.GetFontSize() * 24 / defaultFontSize );
@@ -2250,14 +2335,20 @@ function renderSettingsReports()
             if imguiShowToolTip(string.format("Manually generate a %s report using its current yield data.", string.upperfirst(gathering)), settings.general.showToolTips) then
                 imgui.SameLine(0.0, state.window.spaceToolTip);
             end
+            local disabled = imguiPushDisabled(state.values.genReportDisabled);
             if imgui.SmallButton("Generate") then
-                if generateGatheringReport(gathering) then
-
-                else
-
-                end;
+                if not disabled then
+                    state.values.currentReportName = nil
+                    if generateGatheringReport(gathering) then
+                        state.values.genReportDisabled = true;
+                        ashita.timer.once(2, function()
+                            state.values.genReportDisabled = false;
+                        end);
+                    end
+                end
             end
-            -- /Defaults
+            imguiPopDisabled(disabled);
+            -- /Generate
             imgui.EndMenuBar();
         end
         imgui.SetCursorPosX(0);
@@ -2267,7 +2358,7 @@ function renderSettingsReports()
             imgui.PushTextWrapPos(imgui.GetContentRegionAvailWidth());
 
             if table.count(reports[gathering]) > 0 then
-                for _, file in ipairs(table.sortReportsByDate(reports[gathering], true)) do
+                for _, file in ipairs(sortedReports, true) do
                     local name = file
                     if _ == 1 and #reports[gathering] > 1 then
                         imgui.PushStyleColor(ImGuiCol_Text, 1, 1, 0.54, 1); -- warn
@@ -2275,8 +2366,12 @@ function renderSettingsReports()
                     else
                         imgui.PushStyleColor(ImGuiCol_Text, 0.77, 0.83, 0.80, 1); -- plain
                     end
-                    if imgui.Selectable(name, imgui.GetVarValue(uiVariables["var_ReportSelected"][1]) == _) then
+                    if imgui.Selectable(name, imgui.GetVarValue(uiVariables["var_ReportSelected"][1]) == _, ImGuiSelectableFlags_AllowDoubleClick) then
                         imgui.SetVarValue(uiVariables['var_ReportSelected'][1], _);
+                        state.values.readReportDisabled = false;
+                        if (imgui.IsMouseDoubleClicked(0)) then
+                            state.values.currentReportName = sortedReports[imgui.GetVarValue(uiVariables["var_ReportSelected"][1])];
+                        end
                     end
                     imgui.PopStyleColor();
                 end
@@ -2289,36 +2384,73 @@ function renderSettingsReports()
 
         imgui.Separator();
         imgui.AlignFirstTextHeightToWidgets();
-        if imguiShowToolTip("Read the selected report.", settings.general.showToolTips) then
+        if imguiShowToolTip("Read the selected report within the view window below (or double-click on the file name to perform this action).", settings.general.showToolTips) then
             imgui.SameLine(0.0, state.window.spaceToolTip);
         end
-        if imgui.Button("Read") then
-
-        end
-        imgui.SameLine(0.0, state.window.spaceSettingsBtn * 2);
-        imgui.AlignFirstTextHeightToWidgets();
-        if imguiShowToolTip("Clear the report view window below.", settings.general.showToolTips) then
-            imgui.SameLine(0.0, state.window.spaceToolTip);
-        end
-        if imgui.Button("Clear") then
-        end
-        local spaceReportsDeleteMap = {[0] = state.window.spaceReportsDelete, [1] = state.window.spaceReportsDelete - 2, [2] = state.window.spaceReportsDelete - 2};
-        local spaceReportsDelete = spaceReportsDeleteMap[settings.general.windowScaleIndex]
-        if settings.general.showToolTips then
-            spaceReportsDelete = spaceReportsDelete - ( (imgui.GetFontSize() * 24) * 3 / defaultFontSize );
-            if state.window.scale > 1.0 then spaceReportsDelete = spaceReportsDelete + 2 end;
-        end
-        imgui.SameLine(0.0, spaceReportsDelete);
-
-        local disabled = imguiPushDisabled(false);
-        imgui.AlignFirstTextHeightToWidgets();
-        if imguiShowToolTip("Delete the selected report.", settings.general.showToolTips) then
-            imgui.SameLine(0.0, state.window.spaceToolTip);
-        end
-        if imgui.Button("Delete") then
-            if not disabled then
+        local disabled = imguiPushDisabled(imgui.GetVarValue(uiVariables["var_ReportSelected"][1]) == 0);
+        if imgui.Button("Read") then -- here
+            local selectedIndex = imgui.GetVarValue(uiVariables["var_ReportSelected"][1]);
+            local fname = sortedReports[selectedIndex];
+            if state.values.currentReportName ~= fname then
+                state.values.currentReportName = fname;
             end
         end
+        imguiPopDisabled(disabled);
+        imgui.SameLine(0.0, state.window.spaceSettingsBtn * 2);
+        imgui.AlignFirstTextHeightToWidgets();
+        if imguiShowToolTip("Clear the selection window above and the report view window below.", settings.general.showToolTips) then
+            imgui.SameLine(0.0, state.window.spaceToolTip);
+        end
+        disabled = imguiPushDisabled(imgui.GetVarValue(uiVariables["var_ReportSelected"][1]) == 0);
+        if imgui.Button("Clear") then
+            state.values.currentReportName = nil;
+            imgui.SetVarValue(uiVariables["var_ReportSelected"][1], nil);
+        end
+        imguiPopDisabled(disabled);
+
+        imgui.SameLine(0.0, state.window.spaceSettingsBtn * 2);
+        imgui.AlignFirstTextHeightToWidgets();
+        if imguiShowToolTip("Adjust the font scale of the report.", settings.general.showToolTips) then
+            imgui.SameLine(0.0, state.window.spaceToolTip);
+        end
+        imgui.PushItemWidth(state.window.widthReportScale);
+        imgui.SliderFloat("", uiVariables['var_ReportFontScale'][1], 1.0, 1.5, "%.2f")
+        imgui.PopItemWidth();
+        imgui.SameLine();
+
+        local spaceReportsDeleteMap = {[0] = state.window.spaceReportsDelete, [1] = state.window.spaceReportsDelete - 5, [2] = state.window.spaceReportsDelete - 8};
+        local spaceReportsDelete = spaceReportsDeleteMap[settings.general.windowScaleIndex]
+        if settings.general.showToolTips then
+            spaceReportsDelete = spaceReportsDelete - ( (imgui.GetFontSize() * 24) * 4 / defaultFontSize );
+            if state.window.scale > 1.0 then spaceReportsDelete = spaceReportsDelete + 2 end;
+        end
+
+        imgui.SameLine(0.0, spaceReportsDelete);
+
+        local disabled = imguiPushDisabled(imgui.GetVarValue(uiVariables["var_ReportSelected"][1]) == 0);
+        imgui.AlignFirstTextHeightToWidgets();
+        if imguiShowToolTip("Delete the selected report entry.", settings.general.showToolTips) then
+            imgui.SameLine(0.0, state.window.spaceToolTip);
+        end
+
+        if imgui.Button("Delete") then
+            if not disabled then
+                local selectedIndex = imgui.GetVarValue(uiVariables["var_ReportSelected"][1]);
+                local fname = sortedReports[selectedIndex];
+                if fname ~= nil then
+                    local fpath = string.format('%s/%s/%s/%s', _addon.path, 'reports', gathering, fname);
+                    os.remove(fpath);
+                    for _, fileName in ipairs(reports[gathering]) do
+                        if fileName == fname then
+                            table.remove(reports[gathering], _)
+                        end
+                    end
+                    state.values.currentReportName = nil;
+                    imgui.SetVarValue(uiVariables["var_ReportSelected"][1], #sortedReports-1);
+                end
+            end
+        end
+
         imguiPopDisabled(disabled);
 
         imgui.Separator();
@@ -2326,8 +2458,20 @@ function renderSettingsReports()
         imgui.SetCursorPosX(0);
         imgui.PushStyleColor(ImGuiCol_Border, 0, 0, 0, 0);
         if imgui.BeginChild("Read Report", imgui.GetWindowWidth(), -1, true) then
-            imgui.SetWindowFontScale(state.window.scale);
+            imgui.SetWindowFontScale(imgui.GetVarValue(uiVariables['var_ReportFontScale'][1]));
             imgui.PushTextWrapPos(imgui.GetContentRegionAvailWidth());
+            local fname = state.values.currentReportName;
+            if fname ~= nil then
+                local fpath = string.format('%s/%s/%s/%s', _addon.path, 'reports', gathering, fname);
+                local lines = linesFrom(fpath);
+                if table.count(lines) > 0 then
+                    for _, line in pairs(lines) do
+                        imgui.TextUnformatted(line);
+                    end
+                else
+                    imgui.TextColored(1, 0.615, 0.615, 1, string.format("File (%s) has been moved or deleted. You can delete this entry or reload Yield to remove it.", state.values.currentReportName))
+                end
+            end
             imgui.EndChild()
         end
         imgui.PopStyleColor();
@@ -2428,16 +2572,29 @@ end
 ----------------------------------------------------------------------------------------------------
 -- func: renderSettingsAbout
 -- desc: Renders the About section in settings.
-----------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 function renderSettingsAbout()
     if imgui.BeginChild("About", -1, state.window.heightSettingsContent, true) then
         imgui.SetWindowFontScale(state.window.scale);
+        imgui.Spacing();
         imgui.PushTextWrapPos(imgui.GetContentRegionAvailWidth());
-        for _, v in ipairs(helpTable.about) do
-            imgui.Text(string.strip_colors(v));
-            imgui.Spacing();
+        imgui.TextColored(1, 1, 0.54, 1, "Name:"); imgui.Text(string.format("%s by Lotekkie & Narpt", _addon.name));
+        imgui.Spacing();
+        imgui.TextColored(1, 1, 0.54, 1, "Description:"); imgui.Text(_addon.description);
+        imgui.Spacing();
+        imgui.TextColored(1, 1, 0.54, 1, "Author:"); imgui.Text(_addon.author);
+        imgui.Spacing();
+        imgui.TextColored(1, 1, 0.54, 1, "Version:"); imgui.Text(_addon.version);
+        imgui.Spacing();
+        imgui.TextColored(1, 1, 0.54, 1, "Support/Donate:"); imgui.Text("https://Paypal.me/Sjshovan\nOR\nFor Gil donations: I play on Wings private server! (https://www.wingsxi.com/wings/) My in-game name is LoTekkie.");
+        imgui.Spacing();
+        imgui.PushStyleColor(ImGuiCol_Button, 0.21, 0.47, 0.59, 1); -- info
+        if imgui.Button("Go to Paypal") then
+            ashita.misc.open_url("https://Paypal.me/Sjshovan");
         end
-        imgui.Text("Special Thanks:");
+        imgui.PopStyleColor();
+        imguiFullSep();
+        imgui.TextColored(1, 1, 0.54, 1, "Special Thanks:");
         imguiFullSep();
         imgui.Text("To Narpt (https://www.twitch.tv/narpt): For his awesome streams, invaluable feedback/ideas/testing, and the inspiration to make this!");
         imgui.Spacing();
@@ -2448,6 +2605,97 @@ function renderSettingsAbout()
         imgui.Text("To Ashita Discord members (https://discord.gg/3FbepVGh): For their feedback and knowledge.");
         imgui.Spacing();
         imgui.Text("To everyone who reported bugs and submitted feedback, thanks for helping make Yield great!");
+        imgui.EndChild();
+    end
+end
+
+----------------------------------------------------------------------------------------------------
+-- func: renderHelpGeneral
+-- desc: Renders the general help section with the help window.
+---------------------------------------------------------------------------------------------------
+function renderHelpGeneral()
+    if imgui.BeginChild("HelpGeneral", -1, state.window.heightSettingsContent, true) then
+        imgui.SetWindowFontScale(state.window.scale);
+        imgui.Spacing();
+        imgui.PushTextWrapPos(imgui.GetContentRegionAvailWidth());
+        imgui.TextColored(1, 1, 0.54, 1, "Navigating Yield"); imgui.Separator();
+        imgui.Text("Your main tool for navigating Yield is the mouse. You will find that if you take your time and hover over the (?) tooltips as well as other items within the interface that Yield will give you an explanation of each item, don't be afraid to take the time to explore!");
+        imgui.Text("The real power of Yield comes from within its Settings window. There are a variety of features and customization options there to accommodate almost every gatherers need.");
+        imguiHalfSep(true);
+        imgui.TextColored(1, 1, 0.54, 1, "Gathering"); imgui.Separator();
+        imgui.Text("Yield supports every gathering type in the game and switching between them here is a breeze, simply click on the icons at the top of the Main window. If you hover your mouse over them, Yield will tell you which gathering type you are switching to. If you start gathering and forget to switch, don't worry, Yield will automatically switch to the correct type and begin working to keep track of your stats!");
+        imgui.Spacing();
+        imgui.Text("Don't forget to set those prices! Before heading out to begin gathering, it is recommended that you set your prices for yields within the Settings/Set Prices window. If you forget for some reason, that's ok, you can always update the prices later and recalculate your Estimated Value from within the same window.");
+        imgui.Spacing();
+        imgui.Text("Yield is intelligent and will begin tracking and recording for you without the need for you to do anything first. After you load Yield, simply start gathering and watch the magic happen!");
+        imguiHalfSep(true);
+        imgui.TextColored(1, 1, 0.54, 1, "Settings"); imgui.Separator();
+        imgui.Text("Yield automatically saves all the changes you make in your Settings window each time the Settings window is closed. You do not need to worry about reloading and losing your Prices/Colors/Alerts or any of your current metrics. When you exit the game and come back, everything will be right where you left it.");
+        imguiHalfSep(true);
+        imgui.TextColored(1, 1, 0.54, 1, "Alerts"); imgui.Separator();
+        imgui.Text("Yield ships with a variety of sounds, used for alerts, out of the box. If you find yourself wanting to add custom sounds, it couldn't be easier. All sounds used for Yield alerts can be found within the /sounds folder. To add a new sound, ensure the sound file is in .wav format (e.g. my_new_sound.wav), and drop it into /sounds. After that, reload Yield and your new sound should be available in all sound selection drop-downs.")
+        imguiHalfSep(true);
+        imgui.TextColored(1, 1, 0.54, 1, "Reports"); imgui.Separator();
+        imgui.Text("Yield allows you to generate detailed reports using the metrics it has tracked while you gathered. You do not need to use Yield to manage these files but these reports can be read and deleted from within the Settings/Reports window. These files are stored locally with the /reports folder of the Yield addon. It is safe to remove these files even while Yield is loaded. Yield will inform you that the files no longer exist if you attempt to read them.");
+        imgui.Text("Generation of reports can occur both manually and automatically. If you enable automatic generation of reports Yield will generate a report both when you zone and when you reset the data for a particular gathering type.");
+        imgui.Text("While automatic report generation can happen when you zone, it won't always happen when you zone. Yield will attempt to determine when it should generate on zone change based on your activity.");
+        imguiHalfSep(true);
+        imgui.TextColored(1, 1, 0.54, 1, "Tips/Tricks"); imgui.Separator();
+        imgui.Text("1. Double-click on the title bar of any window to minimize it.");
+        imgui.Text("2. left-click or right-click on your plots within the Main window to cycle the display of their labels.");
+        imgui.Text("3. left-click or right-click on the yields list within the Main window to cycle the sorting methods of the list.");
+        imgui.Text("4. If you forget to shut off your timer when you walk away from Yield, it will automatically shut them off for you after approx. 5 minutes.");
+        imgui.Text("5. You can Double-click on a file name in Reports to view its contents rather than using the Read button.");
+        imgui.Text("6. You can left-click drag on the R: G: B: A: color boxes with your mouse to change their values quickly. You can also left-click on the main color box to change color input methods.");
+        imgui.Text("7. You can view the moon percentage by switching to the digging gathering type.");
+        imguiHalfSep(true);
+        imgui.TextColored(1, 1, 0.54, 1, "Bugs/Errors"); imgui.Separator();
+        imgui.Text("Unfortunately, nothing is perfect, not even Yield. You may come across a problem while using Yield to help you become the ultimate gatherer. I understand the frustration of these occurrences and that is why I added an easy in-app way to report these problems directly to me so I can quickly get the issues resolved.");
+        imgui.Text("To report an issue directly to me, simply head on over to Settings/Feedback. Enter a title, an explanation, and hit submit.");
+        imgui.Text("By taking a mere moment to send a report, you are effectively taking part in the active development of Yield and helping it become even better. This time you take to do so is greatly appreciated!");
+        imguiHalfSep(true);
+        imgui.TextColored(1, 1, 0.54, 1, "Text Commands"); imgui.Separator();
+        imgui.Text("Yield has a few text commands to quickly load/reload/unload. To see a full list of the available commands type: '/yield help' in your chat while Yield is loaded.");
+        imgui.Spacing();
+        imgui.EndChild();
+    end
+end
+
+----------------------------------------------------------------------------------------------------
+-- func: renderHelpQsAndAs
+-- desc: Renders the Q's and A's section with the help window.
+---------------------------------------------------------------------------------------------------
+function renderHelpQsAndAs()
+    if imgui.BeginChild("HelpQnA", -1, state.window.heightSettingsContent, true) then
+        imgui.SetWindowFontScale(state.window.scale);
+        imgui.Spacing();
+        imgui.PushTextWrapPos(imgui.GetContentRegionAvailWidth());
+        imgui.Separator();
+        imgui.TextColored(1, 1, 0.54, 1, "Q: Is this addon available for Windower?"); imgui.Separator();
+        imgui.Text("A: Unfortunately, No. Windower does not currently offer the technology used to create this addon. If they ever do, I will absolutely port it over. ")
+        imguiFullSep();
+        imgui.TextColored(1, 1, 0.54, 1, "Q: Why isn't feature X/Y/Z implemented?"); imgui.Separator();
+        imgui.Text("A: I'm positive many of you out there have some amazing ideas on how to make Yield better. I'd love to hear them! You can contact me through Feedback in Settings, by email (sjshovan@gmail.com), or on discord (LoTekkie #6070).")
+        imguiFullSep();
+        imgui.TextColored(1, 1, 0.54, 1, "Q: How can I donate/support?"); imgui.Separator();
+        imgui.Text("A: Head on over to the About section in Settings. There you can see some ways that I am able to receive your support. Thank you!");
+        imguiFullSep();
+        imgui.TextColored(1, 1, 0.54, 1, "Q: I have upgraded from a previous version now everything went bonkers! What do I do?"); imgui.Separator();
+        imgui.Text("A: If you reach a scenario where Yield wont display correctly or is acting strange, first try reloading the addon. If you are still experiencing issues try the following steps:")
+        imgui.Text("1. Exit out of Final Fantasy 11.");
+        imgui.Text("2. Navigate to the Yield addon and delete your settings/ folder.");
+        imgui.Text("3. Start Final Fantasy 11 and load Yield.")
+        imgui.Text("If you are still experiencing issues, reach out to me and I will attempt to solve them.");
+        imguiFullSep();
+        imgui.TextColored(1, 1, 0.54, 1, "Q: Which server do you play on?"); imgui.Separator();
+        imgui.Text("A: I am currently playing on Wings private server (https://www.wingsxi.com/). My in-game name is LoTekkie. Hope to see you around!");
+        imguiFullSep();
+        imgui.TextColored(1, 1, 0.54, 1, "Q: Have you created any other FFXI addons?"); imgui.Separator();
+        imgui.Text("A: Yes, I have also authored Mount Muzzle(Windower+Ashita) and Battle Stations(Windower). You can obtain these through their respective launchers.");
+        imguiFullSep();
+        imgui.TextColored(1, 1, 0.54, 1, "Q: I have a question that I don't see here. How do I contact you?"); imgui.Separator();
+        imgui.Text("A: You can contact me through Feedback in Settings, by email (sjshovan@gmail.com), or on discord (LoTekkie #6070).");
+        imgui.Spacing();
         imgui.EndChild();
     end
 end

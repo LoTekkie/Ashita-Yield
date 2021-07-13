@@ -1,12 +1,17 @@
 **Author:** [Sjshovan (LoTekkie)](https://github.com/LoTekkie)  
-**Version:** v0.9.5b
+**Version:** v1.0.0
 
 
 # Yield
 
 > An Ashita v3 addon that allows you to track and edit gathering metrics within a simple GUI in Final Fantasy 11 Online.
 
-### *This Addon is currently in Beta and is a WIP. The final beta release is now available (v0.9.5b). I expect to fully release this no later than 7/16/2020.*
+<img src="https://i.postimg.cc/rsWfXXN8/yield-1-0-1.png..." data-canonical-src="https://i.postimg.cc/rsWfXXN8/yield-1-0-1.png" width="175" height="350" />
+<img src="https://i.postimg.cc/3RkL1Dy0/yield-1-0-2.png..." data-canonical-src="https://i.postimg.cc/3RkL1Dy0/yield-1-0-2.png" width="400" height="350" />
+<img src="https://i.postimg.cc/FKWW0xKQ/yield-1-0-3.png..." data-canonical-src="https://i.postimg.cc/FKWW0xKQ/yield-1-0-3.png" width="400" height="350" />
+<img src="https://i.postimg.cc/bJ4mBNbC/yield-1-0-4.png..." data-canonical-src="https://i.postimg.cc/bJ4mBNbC/yield-1-0-4.png" width="400" height="350" />
+<img src="https://i.postimg.cc/pVnGnzbg/yield-1-0-5.png..." data-canonical-src="https://i.postimg.cc/pVnGnzbg/yield-1-0-5.png" width="400" height="350" />
+<img src="https://i.postimg.cc/Fs5Pbzh1/yield-1-0-6.png..." data-canonical-src="https://i.postimg.cc/Fs5Pbzh1/yield-1-0-6.png" width="400" height="350" />  
 
 ### Table of Contents
 
@@ -39,7 +44,7 @@ ___
 2. Click on `Releases`. 
 3. Click on the `Source code (zip)` link within the latest release to download.
 4. Extract the zipped folder to `Ashita_v3/addons/`.
-5. Rename the folder to remove the version tag (`-v0.9.0a`). The folder should be named `Yield`.
+5. Rename the folder to remove the version tag (`-v1.0.0`). The folder should be named `Yield`.
 
 **Autoloading:**   
 
@@ -58,7 +63,8 @@ The following aliases are available to Yield commands:
 **yield:** yld  
 **unload:** u  
 **reload:** r  
-**about:** a     
+**find:** f  
+**about:** a  
 **help:** h  
  
  ___
@@ -98,6 +104,16 @@ Reloads the Yield addon. Below are the equivalent ways of calling the command:
     /yield r
     /yld r
 
+**find**
+
+Positions the Yield window to the top left corner of your screen. Below are the equivalent ways of calling the command:
+    
+    /yield find
+    /yld find
+    /yield f
+    /yld f
+
+
 **about**
 
 Displays information about the Yield addon. Below are the equivalent ways of calling the command:
@@ -125,6 +141,35 @@ ___
 
 ___
 ### Change Log
+**v1.0.0** - 7/13/2021 (First Official Release)
+- Rewrote Clamming logic.
+- Added bucket pz value to visible Clamming metrics.
+- Added Fishing skill-up alert.
+- Added Clamming bucket break alert.
+- Changed clamming kit metric value to be more readable.
+- Added multiple character support for reports.
+- Fixed issue where Yield would crash if gathering type was changed while zoning.
+- Fixed report reading issues.
+- Added saved window position.
+- Added new find text command.
+- Updated Q's and A's within the Help window.
+- Added documentation strings to all functions/methods.
+- Updated gathering logic.
+- Added missing Clamming yields.
+- Updated baseprices library.
+- Fixed digging moon percentage tooltip.
+- Fixed errors when changing gathering state while settings are open.
+- Added value change colors to plots.
+- Added value change colors to progress bar.
+- Fixed issue where total yields metric was not adjusted when using the yield list buttons.
+- Updated Feedback section in Settings.
+- Fixed issue where yields were not readonly when NPC price mode was activated.
+- Updated UI in Set Prices Settings.
+- Updated UI in Set Colors Settings.
+- Updated main window to position center with fresh settings.
+- Updated sub windows to position center when becoming visible.
+- Updated title.
+
 **v0.9.5b** - 7/8/2021
 - Fixed stack size data across many yields.
 - Changed Settings window type away from modal.
@@ -201,8 +246,7 @@ ___
 
 ___    
 ### TODOs
-- **TODO:** Add/Update documentation.
-- **TODO:** Cleanup code, re-write to improve performance/readability.
+- **TODO:** Cleanup code, re-write some areas to improve performance/readability.
 ___
 
 ### License

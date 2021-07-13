@@ -41,8 +41,8 @@ local chatColors = {
 }
 
 ----------------------------------------------------------------------------------------------------
--- func:
--- desc: .
+-- func: displayHelp
+-- desc: Show help table entries in the players chat log.
 ----------------------------------------------------------------------------------------------------
 function displayHelp(table)
     for index, command in pairs(table) do
@@ -51,8 +51,8 @@ function displayHelp(table)
 end
 
 ----------------------------------------------------------------------------------------------------
--- func:
--- desc: .
+-- func: displayResponse
+-- desc: Show a message with the given color in the players chat log.
 ----------------------------------------------------------------------------------------------------
 function displayResponse(response, color)
     color = color or chatColors.info
@@ -60,8 +60,8 @@ function displayResponse(response, color)
 end
 
 ----------------------------------------------------------------------------------------------------
--- func:
--- desc: .
+-- func: helpCommandEntry
+-- desc: Build a command description.
 ----------------------------------------------------------------------------------------------------
 function helpCommandEntry(command, description)
     local shortName = strColor("yld", chatColors.primary)
@@ -72,8 +72,8 @@ function helpCommandEntry(command, description)
 end
 
 ----------------------------------------------------------------------------------------------------
--- func:
--- desc: .
+-- func: helpTypeEntry
+-- desc: Build a help description.
 ----------------------------------------------------------------------------------------------------
 function helpTypeEntry(name, description)
     local name = strColor(name, chatColors.secondary)
@@ -83,8 +83,8 @@ function helpTypeEntry(name, description)
 end
 
 ----------------------------------------------------------------------------------------------------
--- func:
--- desc: .
+-- func: helpTitle
+-- desc: Build a help title.
 ----------------------------------------------------------------------------------------------------
 function helpTitle(context)
     local context = strColor(context, chatColors.danger)
@@ -92,8 +92,8 @@ function helpTitle(context)
 end
 
 ----------------------------------------------------------------------------------------------------
--- func:
--- desc: .
+-- func: helpSeparator
+-- desc: Build a help separator.
 ----------------------------------------------------------------------------------------------------
 function helpSeparator(character, count)
     local sep = ''
@@ -104,8 +104,8 @@ function helpSeparator(character, count)
 end
 
 ----------------------------------------------------------------------------------------------------
--- func:
--- desc: .
+-- func: commandResponse
+-- desc: Build a command response.
 ----------------------------------------------------------------------------------------------------
 function commandResponse(message, success)
     local responseColor = chatColors.success
@@ -120,8 +120,8 @@ function commandResponse(message, success)
 end
 
 ----------------------------------------------------------------------------------------------------
--- func:
--- desc: .
+-- func: sortKeysByAlphabet
+-- desc: Sort table keys alphabetically.
 ----------------------------------------------------------------------------------------------------
 function table.sortKeysByAlphabet(t, desc)
     local ret = {}
@@ -137,8 +137,8 @@ function table.sortKeysByAlphabet(t, desc)
 end
 
 ----------------------------------------------------------------------------------------------------
--- func:
--- desc: .
+-- func: sortKeysByLength
+-- desc: Sort table keys by string length.
 ----------------------------------------------------------------------------------------------------
 function table.sortKeysByLength(t, desc)
     local ret = {}
@@ -154,8 +154,8 @@ function table.sortKeysByLength(t, desc)
 end
 
 ----------------------------------------------------------------------------------------------------
--- func:
--- desc: .
+-- func: sortReportsByDate
+-- desc: Sort the tables values by it time stamp strings.
 ----------------------------------------------------------------------------------------------------
 function table.sortReportsByDate(t, desc)
     local ret = {}
@@ -192,8 +192,8 @@ function table.sortReportsByDate(t, desc)
 end
 
 ----------------------------------------------------------------------------------------------------
--- func:
--- desc: .
+-- func: getIndexFromKey
+-- desc: Obtain a table index from the given table key.
 ----------------------------------------------------------------------------------------------------
 function table.getIndexFromKey(t, key)
     for _, k in ipairs(table.keys(t)) do
@@ -205,16 +205,16 @@ function table.getIndexFromKey(t, key)
 end
 
 ----------------------------------------------------------------------------------------------------
--- func:
--- desc: .
+-- func: camelToTitle
+-- desc: Convert a camel case string to a title.
 ----------------------------------------------------------------------------------------------------
 function string.camelToTitle(s)
     return string.gsub(string.upperfirst(s), "([A-Z][a-z]?)", " %1"):sub(2);
 end
 
 ----------------------------------------------------------------------------------------------------
--- func:
--- desc: .
+-- func: lowerToTitle
+-- desc: Convert a lower case string to a title.
 ----------------------------------------------------------------------------------------------------
 function string.lowerToTitle(s)
     s = string.gsub(" "..s, "%W%l", string.upper):sub(2);
@@ -223,8 +223,8 @@ function string.lowerToTitle(s)
 end
 
 ----------------------------------------------------------------------------------------------------
--- func:
--- desc: .
+-- func: strColor
+-- desc: Add color to a string.
 ----------------------------------------------------------------------------------------------------
 function strColor(str, color) 
     return string.format(color, str)
@@ -245,8 +245,8 @@ function imguiShowToolTip(text, enabled)
 end
 
 ----------------------------------------------------------------------------------------------------
--- func:
--- desc: .
+-- func: imguiFullSep
+-- desc: Create a multi-line separator.
 ----------------------------------------------------------------------------------------------------
 function imguiFullSep()
     imgui.Spacing();
@@ -255,8 +255,8 @@ function imguiFullSep()
 end
 
 ----------------------------------------------------------------------------------------------------
--- func:
--- desc: .
+-- func: imguiHalfSep
+-- desc: Create a multi-line separator, choose to switch the order.
 ----------------------------------------------------------------------------------------------------
 function imguiHalfSep(flip)
     if not flip then
@@ -269,8 +269,8 @@ function imguiHalfSep(flip)
 end
 
 ----------------------------------------------------------------------------------------------------
--- func:
--- desc: .
+-- func: cycleIndex
+-- desc: Move forwards or backwards from the given index by the given direction.
 ----------------------------------------------------------------------------------------------------
 function cycleIndex(index, min, max, dir)
     if dir == nil then dir = 1 end;
@@ -317,8 +317,8 @@ function colorToRGBA(c)
 end
 
 ----------------------------------------------------------------------------------------------------
--- func:
--- desc: .
+-- func: imguiPushActiveBtnColor
+-- desc: Add some button color if the condition is met.
 ----------------------------------------------------------------------------------------------------
 function imguiPushActiveBtnColor(cond)
     if cond then
@@ -330,8 +330,8 @@ function imguiPushActiveBtnColor(cond)
 end
 
 ----------------------------------------------------------------------------------------------------
--- func:
--- desc: .
+-- func: imguiPushDisabled
+-- desc: Make the item look disabled if the given condition is met.
 ----------------------------------------------------------------------------------------------------
 function imguiPushDisabled(cond)
     if cond then
@@ -343,8 +343,8 @@ function imguiPushDisabled(cond)
 end
 
 ----------------------------------------------------------------------------------------------------
--- func:
--- desc: .
+-- func: imguiPopDisabled
+-- desc: Remove the disabled look if the given condition is met.
 ----------------------------------------------------------------------------------------------------
 function imguiPopDisabled(cond)
     if cond then
@@ -355,11 +355,25 @@ function imguiPopDisabled(cond)
 end
 
 ----------------------------------------------------------------------------------------------------
--- func:
--- desc: .
+-- func: wait
+-- desc: Halt the application for the given number of seconds.
 ----------------------------------------------------------------------------------------------------
 function wait(seconds)
     local time = seconds or 1
     local start = os.time()
     repeat until os.time() == start + time
+end
+
+----------------------------------------------------------------------------------------------------
+-- func: table.sumValues
+-- desc: Add all the values of the given table.
+----------------------------------------------------------------------------------------------------
+function table.sumValues(t)
+    local val = 0;
+    for k, v in pairs(t) do
+        if (type(v) == 'number') then
+            val = val + v;
+        end
+    end
+    return val
 end

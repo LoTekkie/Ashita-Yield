@@ -60,7 +60,7 @@ To autoload Yield so that it is always ready for use upon entering the game, fol
 ___
 ### Upgrading
 
-If you have a previous installation of Yield follow the steps below to ensure you don't encounter any issues.   
+If you have a previous installation of Yield and you are installing manually, follow the steps below to ensure you don't encounter any issues.   
 
 1. Exit out of Final Fantasy XI.
 2. Install latest version of Yield.

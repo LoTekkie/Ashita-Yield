@@ -49,11 +49,13 @@ metricsTemplate =
 -- Template for Yield state.
 stateTemplate =
 {
-    window       = {},
-    initializing = true,
-    attempting   = false,
-    attemptType  = "harvesting",
-    gathering    = "harvesting",
+    window        = {},
+    initializing  = true,
+    firstLoad     = true,
+    reportsLoaded = false,
+    attempting    = false,
+    attemptType   = "harvesting",
+    gathering     = "harvesting",
     settings =
     {
         activeIndex = 1,
@@ -127,12 +129,13 @@ defaultSettingsTemplate =
     {
         gathering          = "harvesting",
         lastKnownGathering = nil,
-        windowPosX         = nil,
-        windowPosY         = nil,
+        windowPosX         = 0,
+        windowPosY         = 0,
         clamBucketBroken   = false,
         clamBucketTotal    = 0,
         clamBucketPz       = 0,
         clamBucketPzMax    = 50,
+        firstLoad          = true,
     },
     priceModes = -- 0 - stack price, 1 - single price, 2 - npc price.
     {

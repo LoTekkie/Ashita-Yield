@@ -1,5 +1,5 @@
 **Author:** [Sjshovan (LoTekkie)](https://github.com/LoTekkie)  
-**Version:** v1.0.0
+**Version:** v1.0.1
 
 
 # Yield
@@ -141,6 +141,11 @@ ___
 
 ___
 ### Change Log
+**v1.0.1** - 7/21/2021
+- Fixed auto-load issue.
+- Fixed issue with report management when no character is available.
+- Added first load behavior.
+
 **v1.0.0** - 7/13/2021 (First Official Release)
 - Rewrote Clamming logic.
 - Added bucket pz value to visible Clamming metrics.

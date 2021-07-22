@@ -29,7 +29,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 _addon.name = 'Yield';
 _addon.description = 'Track and edit a variety of metrics related to gathering within a simple GUI.';
 _addon.author = 'Sjshovan (LoTekkie) Sjshovan@Gmail.com';
-_addon.version = '1.0.0';
+_addon.version = '1.0.1';
 _addon.commands = {'/yield', '/yld'};
 
 require 'templates';
@@ -615,6 +615,8 @@ end
 -- desc: Generate a report file using tracked metrics.
 ----------------------------------------------------------------------------------------------------
 function generateGatheringReport(gatherType)
+    if gatherType == nil then gatherType = state.gathering; end
+    if getPlayerName() == "" then return false; end
     local zones = settings.zones[gatherType];
     local zonesCount = table.count(zones);
     local metrics = metrics[gatherType];
@@ -730,6 +732,7 @@ function saveSettings()
     settings.state.clamBucketTotal     = state.values.clamBucketTotal;
     settings.state.clamBucketPz        = state.values.clamBucketPz;
     settings.state.clamBucketPzMax     = state.values.clamBucketPzMax;
+    settings.state.firstLoad           = state.firstLoad;
 
     -- Save the configuration variables..
     ashita.settings.save(_addon.path .. 'settings/settings.json', settings);
@@ -767,6 +770,7 @@ ashita.register_event('load', function()
         -- Add textures..
         local texturePath = string.format('images\\%s.png', data.name)
         local hres, texture = ashita.d3dx.CreateTextureFromFileA(_addon.path .. texturePath);
+
         if texture == nil then
             state.values.btnTextureFailure = true;
             displayResponse(string.format("Yield: Failed to load texture (%s). Buttons will now default to text display.", texturePath), "\31\167%s");
@@ -788,6 +792,7 @@ ashita.register_event('load', function()
     state.values.clamBucketTotal     = settings.state.clamBucketTotal;
     state.values.clamBucketPz        = settings.state.clamBucketPz;
     state.values.clamBucketPzMax     = settings.state.clamBucketPzMax;
+    state.firstLoad                  = settings.state.firstLoad;
 
     -- Add price ui variables from settings..
     for gathering, yields in pairs(settings.yields) do
@@ -809,8 +814,14 @@ ashita.register_event('load', function()
     -- Retrieve reports..
     for _, data in ipairs(gatherTypes) do
         if not table.haskey(reports, data.name) then reports[data.name] = {}; end
-        for f in io.popen(string.format("dir %s\\reports\\%s\\%s /b", _addon.path, getPlayerName(), data.name)):lines() do
-            reports[data.name][#reports[data.name] + 1] = f;
+        if getPlayerName() ~= "" then
+            local dirName = string.format("%s\\reports\\%s\\%s", _addon.path, getPlayerName(), data.name);
+            if ashita.file.dir_exists(dirName) then
+                for f in io.popen(string.format("dir %s /b", dirName)):lines() do
+                    reports[data.name][#reports[data.name] + 1] = f;
+                end
+            end
+            state.reportsLoaded = true;
         end
     end
 
@@ -858,6 +869,10 @@ ashita.register_event('load', function()
 
     -- Load ui variables from the settings file..
     loadUiVariables();
+
+    if state.firstLoad then
+        imgui.SetVarValue(uiVariables["var_HelpVisible"][1], true);
+    end
 end)
 
 ----------------------------------------------------------------------------------------------------
@@ -1345,7 +1360,7 @@ ashita.register_event('render', function()
 
     -- MAIN
     imgui.SetNextWindowSize(scaledFontSize*250/defaultFontSize, scaledFontSize*500/defaultFontSize - scaledHeightReduction, ImGuiSetCond_Always);
-    if state.initializing and (state.window.posX == nil or state.window.posY == nil) then
+    if state.initializing and state.firstLoad then
         imgui.SetNextWindowPosCenter(1);
         state.values.centerWindow = true;
     elseif state.initializing then
@@ -1396,6 +1411,19 @@ ashita.register_event('render', function()
     }
 
     imgui.SetWindowFontScale(state.window.scale);
+
+
+    if getPlayerName() ~= "" and not state.reportsLoaded then
+        for _, data in ipairs(gatherTypes) do
+            local dirName = string.format("%s\\reports\\%s\\%s", _addon.path, getPlayerName(), data.name);
+            if ashita.file.dir_exists(dirName) then
+                for f in io.popen(string.format("dir %s /b", dirName)):lines() do
+                    reports[data.name][#reports[data.name] + 1] = f;
+                end
+            end
+        end
+        state.reportsLoaded = true;
+    end
 
     -- MAIN_MENU
     if imgui.BeginMenuBar() then
@@ -1462,7 +1490,6 @@ ashita.register_event('render', function()
 
     -- totals metrics
     for total, metric in pairs(table.sortKeysByLength(metrics[state.gathering].totals, true)) do
-
         if state.gathering == "digging" and metric == "breaks" then
             if imguiShowToolTip("Current Moon percentage.", settings.general.showToolTips) then
                 imgui.SameLine(0.0, state.window.spaceToolTip);
@@ -1965,6 +1992,7 @@ ashita.register_event('render', function()
         helpWindow:Draw("Yield Help");
     elseif state.values.helpWindowOpen then
         state.values.helpWindowOpen = false;
+        state.firstLoad = false;
     end
     -- /HELP
 end);
@@ -2641,7 +2669,11 @@ function renderSettingsReports()
                     imgui.PopStyleColor();
                 end
             else
-                imgui.Text("No reports..")
+                if getPlayerName() ~= "" then
+                    imgui.Text("No reports..")
+                else
+                    imgui.TextColored(1, 0.615, 0.615, 1, string.format("Unable to manage reports with no character loaded."));
+                end
             end
             imgui.EndChild()
         end
@@ -2699,7 +2731,7 @@ function renderSettingsReports()
         end
 
         if imgui.Button("Delete") then
-            if not disabled then
+            if not disabled and getPlayerName() ~= "" then
                 local selectedIndex = imgui.GetVarValue(uiVariables["var_ReportSelected"][1]);
                 local fname = sortedReports[selectedIndex];
                 if fname ~= nil then
@@ -2727,15 +2759,21 @@ function renderSettingsReports()
             imgui.PushTextWrapPos(imgui.GetContentRegionAvailWidth());
             local fname = state.values.currentReportName;
             if fname ~= nil then
-                local fpath = string.format('%s/%s/%s/%s/%s', _addon.path, 'reports', getPlayerName(), gathering, fname);
-                local lines = linesFrom(fpath);
-                if table.count(lines) > 0 then
-                    for _, line in pairs(lines) do
-                        imgui.TextUnformatted(line);
+                if getPlayerName() ~= "" then
+                    local fpath = string.format('%s/%s/%s/%s/%s', _addon.path, 'reports', getPlayerName(), gathering, fname);
+                    local lines = linesFrom(fpath);
+                    if table.count(lines) > 0 then
+                        for _, line in pairs(lines) do
+                            imgui.TextUnformatted(line);
+                        end
+                    else
+                        imgui.TextColored(1, 0.615, 0.615, 1, string.format("File (%s) is unable to be read. Either this file has been moved, deleted, or you have changed characters. Reload yield to update this list.", state.values.currentReportName))
                     end
                 else
-                    imgui.TextColored(1, 0.615, 0.615, 1, string.format("File (%s) has been moved or deleted. You can delete this entry or reload Yield to remove it.", state.values.currentReportName))
+                    imgui.TextColored(1, 0.615, 0.615, 1, string.format("Unable to manage reports with no character loaded."));
                 end
+            elseif getPlayerName() == "" then
+                imgui.TextColored(1, 0.615, 0.615, 1, string.format("Unable to manage reports with no character loaded."));
             end
             imgui.EndChild()
         end
@@ -2883,6 +2921,12 @@ function renderHelpGeneral()
         imgui.SetWindowFontScale(state.window.scale);
         imgui.Spacing();
         imgui.PushTextWrapPos(imgui.GetContentRegionAvailWidth());
+        if state.firstLoad then
+            imgui.TextColored(1, 1, 0.54, 1, "Welcome to Yield!"); imgui.Separator();
+            imgui.Text("Before you begin, please take a moment to read through the following general information and common questions to familiarize yourself.");
+            imgui.Text("If you would like to read this later you can open this window anytime by click the 'Help' button located at the bottom of the app.");
+            imguiHalfSep(true);
+        end
         imgui.TextColored(1, 1, 0.54, 1, "Navigating Yield"); imgui.Separator();
         imgui.Text("Your main tool for navigating Yield is the mouse. You will find that if you take your time and hover over the (?) tooltips as well as other items within the interface that Yield will give you an explanation of each item, don't be afraid to take the time to explore!");
         imgui.Text("The real power of Yield comes from within its Settings window. There are a variety of features and customization options there to accommodate almost every gatherer's need.");

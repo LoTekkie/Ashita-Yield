@@ -634,7 +634,7 @@ function generateGatheringReport(gatherType)
     if (not ashita.file.dir_exists(fpath)) then
         ashita.file.create_dir(fpath);
     end
-    local file = io.open(string.format('%s/%s', fpath, fname), 'a');
+    local file = io.open(string.format('%s/%s', fpath, fname), 'w+');
     if (file ~= nil) then
         local dateTimeStampNice = string.format("%.4d-%.2d-%.2d %.2d:%.2d:%.2d", date.year, date.month, date.day, date.hour, date.min, date.sec);
         file:write(string.format("%s YIELD REPORT : [%s]\n", string.upper(gatherType), dateTimeStampNice));
@@ -820,6 +820,8 @@ ashita.register_event('load', function()
                 for f in io.popen(string.format("dir %s /b", dirName)):lines() do
                     reports[data.name][#reports[data.name] + 1] = f;
                 end
+            else
+                ashita.file.create_dir(dirName);
             end
             state.reportsLoaded = true;
         end
@@ -1420,6 +1422,8 @@ ashita.register_event('render', function()
                 for f in io.popen(string.format("dir %s /b", dirName)):lines() do
                     reports[data.name][#reports[data.name] + 1] = f;
                 end
+            else
+                ashita.file.create_dir(dirName);
             end
         end
         state.reportsLoaded = true;
@@ -2883,7 +2887,7 @@ function renderSettingsAbout()
         imgui.PushTextWrapPos(imgui.GetContentRegionAvailWidth());
         imgui.TextColored(1, 1, 0.54, 1, "Name:"); imgui.Text(string.format("%s by Lotekkie & Narpt", _addon.name));
         imgui.Spacing();
-        imgui.TextColored(1, 1, 0.54, 1, "Description:"); imgui.Text(_addon.description);
+        imgui.TextColored(1, 1, 0.54, 1, "Description:"); imgui.Text(_addon.description); imgui.Text("https://github.com/LoTekkie/Ashita-Yield");
         imgui.Spacing();
         imgui.TextColored(1, 1, 0.54, 1, "Author:"); imgui.Text(_addon.author);
         imgui.Spacing();

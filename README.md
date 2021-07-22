@@ -17,6 +17,7 @@
 
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
+- [Upgrading](#upgrading)
 - [Aliases](#aliases)
 - [Usage](#usage)
 - [Commands](#commands)
@@ -55,6 +56,17 @@ To autoload Yield so that it is always ready for use upon entering the game, fol
 2. Open the `Default.txt` file.
 3. Locate the `Load Common Addons` section.
 4. add the following line: `/addon load yield`.
+
+___
+### Upgrading
+
+If you have a previous installation of Yield follow the steps below to ensure you don't encounter any issues.   
+
+1. Exit out of Final Fantasy XI.
+2. Install latest version of Yield.
+3. Delete your /settings folder.
+4. Load Finaly Fantasy XI.
+5. Load Yield.
 
 ___
 ### Aliases

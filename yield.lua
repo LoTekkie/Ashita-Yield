@@ -807,7 +807,7 @@ ashita.register_event('load', function()
     end
 
     -- Retrieve sounds files..
-    for f in io.popen(string.format("dir %s\\sounds /b", _addon.path)):lines() do
+    for f in io.popen(string.format('dir "%s\\sounds" /b', _addon.path)):lines() do
         sounds[#sounds + 1] = f;
     end
 

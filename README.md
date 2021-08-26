@@ -1,5 +1,5 @@
 **Author:** [Sjshovan (LoTekkie)](https://github.com/LoTekkie)  
-**Version:** v1.0.1
+**Version:** v1.0.2
 
 
 # Yield
@@ -153,6 +153,10 @@ ___
 
 ___
 ### Change Log
+**v1.0.2** - 08/26/2021
+- Fixed typo in Platinum Ore yield.
+- Fixed issue with sounds occasionally not loading correctly.
+
 **v1.0.1** - 7/21/2021
 - Fixed auto-load issue.
 - Fixed issue with report management when no character is available.

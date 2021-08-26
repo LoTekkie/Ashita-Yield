@@ -42,7 +42,7 @@ metricsTemplate =
     points =
     {
         yields = {0},
-        values  = {0}
+        values = {0}
     }
 }
 

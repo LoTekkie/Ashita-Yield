@@ -1,5 +1,5 @@
 **Author:** [Sjshovan (LoTekkie)](https://github.com/LoTekkie)  
-**Version:** v1.0.2
+**Version:** v1.0.3
 
 
 # Yield
@@ -153,6 +153,9 @@ ___
 
 ___
 ### Change Log
+**v1.0.3** - 08/27/2021 (First Ashita Release)
+- Removed escape button option for confirm modals.
+
 **v1.0.2** - 08/26/2021
 - Fixed typo in Platinum Ore yield.
 - Fixed issue with sounds occasionally not loading correctly.

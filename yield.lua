@@ -1392,7 +1392,7 @@ ashita.register_event('render', function()
         heightSettingsContent = scaledFontSize * 367.0 / defaultFontSize,
         heightSettingsScroll  = scaledFontSize * 343.0 / defaultFontSize,
         spacePriceModeRadio   = scaledFontSize * 26.0  / defaultFontSize * windowScale + (windowScale - 1.0) * 2,
-        spacePriceDefaults    = scaledFontSize * 177.0  / defaultFontSize,
+        spacePriceDefaults    = scaledFontSize * 177.0 / defaultFontSize,
         spaceEstimatedValue   = scaledFontSize * 12.0  / defaultFontSize * windowScale + (windowScale - 1.0) * 2,
         widthModalConfirm     = scaledFontSize * 350.0 / defaultFontSize,
         heightModalConfirm    = scaledFontSize * 102.0 / defaultFontSize,
@@ -1954,10 +1954,7 @@ ashita.register_event('render', function()
             state.actions.modalCancelAction();
         end
         imgui.SameLine();
-        imgui.Text("OR click away OR press Escape to exit.");
-        if (imgui.IsKeyPressed(imgui.GetKeyIndex(ImGuiKey_Escape))) then
-            SettingsWindow:modalSaveAction();
-        end
+        imgui.Text("OR click away to exit.");
         if (not imgui.IsMouseHoveringAnyWindow() and imgui.IsMouseClicked()) then
             SettingsWindow:modalSaveAction();
         end

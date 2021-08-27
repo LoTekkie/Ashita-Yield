@@ -45,7 +45,7 @@ ___
 2. Click on `Releases`. 
 3. Click on the `Source code (zip)` link within the latest release to download.
 4. Extract the zipped folder to `Ashita_v3/addons/`.
-5. Rename the folder to remove the version tag (`-v1.0.0`). The folder should be named `Yield`.
+5. Rename the folder to remove the version tag (`-v1.0.3`). The folder should be named `Yield`.
 
 **Autoloading:**   
 
@@ -138,7 +138,7 @@ Displays information about the Yield addon. Below are the equivalent ways of cal
 ___
 ### Support
 **Having Issues with this addon?**
-* Please let me know [here](https://github.com/LoTekkie/Ashita-Yield/issues/new).
+* Please let me know here: [https://github.com/LoTekkie/Ashita-Yield/issues/new](https://github.com/LoTekkie/Ashita-Yield/issues/new).
   
 **Have something to say?**
 * Send me some feedback here: <Sjshovan@Gmail.com>
